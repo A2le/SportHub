@@ -1,17 +1,25 @@
+using AutoMapper;
+using SportHub.Application.DTOs;
 using SportHub.Application.Interfaces;
 using SportHub.Domain.Entities;
 
 namespace SportHub.Application.Services;
 
-public class TeamService(ITeamRepository teams)
+public class TeamService(ITeamRepository teams, IMapper mapper)
 {
-    public Task<Team?> GetAsync(string id) => teams.GetByIdAsync(id);
-    public Task<List<Team>> ListAsync() => teams.GetAllAsync();
-
-    public async Task<Team> CreateAsync(string name, string coachId, string ageGroupId)
+    public async Task<TeamResponse?> GetAsync(int id)
     {
-        var team = new Team { Name = name, CoachId = coachId, AgeGroupId = ageGroupId };
+        var team = await teams.GetByIdAsync(id);
+        return team is null ? null : mapper.Map<TeamResponse>(team);
+    }
+
+    public async Task<List<TeamResponse>> ListAsync()
+        => mapper.Map<List<TeamResponse>>(await teams.GetAllAsync());
+
+    public async Task<TeamResponse> CreateAsync(CreateTeamRequest request)
+    {
+        var team = mapper.Map<Team>(request);
         await teams.SaveAsync(team);
-        return team;
+        return mapper.Map<TeamResponse>(team);
     }
 }

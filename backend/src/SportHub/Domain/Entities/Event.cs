@@ -2,14 +2,21 @@ namespace SportHub.Domain.Entities;
 
 public class Event
 {
-    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string EventType { get; set; } = "School Football Festival";
+    public string Venue { get; set; } = string.Empty;
+    public string StartDate { get; set; } = string.Empty;
+    public string EndDate { get; set; } = string.Empty;
+    public string StartTime { get; set; } = string.Empty;
+    public string EndTime { get; set; } = string.Empty;
+    public int NumberOfTeams { get; set; }
     public string Description { get; set; } = string.Empty;
-    public DateTime StartDate { get; set; }
-    public DateTime EndDate { get; set; }
-    public string PitchId { get; set; } = string.Empty;
-    public int MaxTeams { get; set; }
-    public string AgeGroupId { get; set; } = string.Empty;
-    public string Status { get; set; } = "Draft";
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public string AgeGroups { get; set; } = string.Empty;
+    public int NumberOfPitches { get; set; }
+    public string PitchStartTime { get; set; } = string.Empty;
+    public string PitchEndTime { get; set; } = string.Empty;
+    public int MatchDurationMinutes { get; set; } = 30;
+    public int BreakBetweenMatchesMinutes { get; set; } = 10;
+    public string CreatedAt { get; set; } = DateTime.UtcNow.ToString("o");
 }
