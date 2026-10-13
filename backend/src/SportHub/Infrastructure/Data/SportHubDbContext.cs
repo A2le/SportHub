@@ -16,6 +16,10 @@ public class SportHubDbContext(DbContextOptions<SportHubDbContext> options) : Db
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Event>()
+            .Property(e => e.Id)
+            .ValueGeneratedOnAdd();
+
         modelBuilder.Entity<Fixture>()
             .HasOne<Team>().WithMany().HasForeignKey(f => f.HomeTeamId).OnDelete(DeleteBehavior.Restrict);
 

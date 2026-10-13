@@ -17,25 +17,22 @@ builder.Services.AddScoped<IRegistrationRepository, RegistrationRepository>();
 builder.Services.AddScoped<IFixtureRepository, FixtureRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 
+// AutoMapper
+builder.Services.AddAutoMapper(cfg => cfg.AddMaps(typeof(SportHub.Application.Mapping.EventProfile).Assembly));
+
 // Application Services
 builder.Services.AddScoped<EventService>();
 builder.Services.AddScoped<TeamService>();
 builder.Services.AddScoped<RegistrationService>();
 builder.Services.AddScoped<FixtureService>();
 
-// MCP Server
-builder.Services.AddMcpServer()
-    .WithHttpTransport()
-    .WithToolsFromAssembly();
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// Auto-migrate on startup
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<SportHubDbContext>();
-    db.Database.Migrate();
-}
-
-app.MapMcp();
+app.UseSwagger();
+app.UseSwaggerUI();
+app.MapControllers();
 app.Run();

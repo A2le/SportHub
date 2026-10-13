@@ -6,29 +6,45 @@ namespace SportHub.Infrastructure.Data;
 
 public class EventRepository(SportHubDbContext db) : IEventRepository
 {
-    public Task<Event?> GetByIdAsync(string id) => db.Events.FindAsync(id).AsTask();
+    public Task<Event?> GetByIdAsync(int id) => db.Events.FindAsync(id).AsTask();
     public Task<List<Event>> GetAllAsync() => db.Events.ToListAsync();
     public async Task SaveAsync(Event ev) { db.Events.Add(ev); await db.SaveChangesAsync(); }
+    public async Task<bool> UpdateAsync(int id, Event ev)
+    {
+        var existing = await db.Events.FindAsync(id);
+        if (existing is null) return false;
+        db.Entry(existing).CurrentValues.SetValues(ev);
+        await db.SaveChangesAsync();
+        return true;
+    }
+    public async Task<bool> DeleteAsync(int id)
+    {
+        var existing = await db.Events.FindAsync(id);
+        if (existing is null) return false;
+        db.Events.Remove(existing);
+        await db.SaveChangesAsync();
+        return true;
+    }
 }
 
 public class TeamRepository(SportHubDbContext db) : ITeamRepository
 {
-    public Task<Team?> GetByIdAsync(string id) => db.Teams.FindAsync(id).AsTask();
+    public Task<Team?> GetByIdAsync(int id) => db.Teams.FindAsync(id).AsTask();
     public Task<List<Team>> GetAllAsync() => db.Teams.ToListAsync();
     public async Task SaveAsync(Team team) { db.Teams.Add(team); await db.SaveChangesAsync(); }
 }
 
 public class RegistrationRepository(SportHubDbContext db) : IRegistrationRepository
 {
-    public Task<Registration?> GetByIdAsync(string id) => db.Registrations.FindAsync(id).AsTask();
-    public Task<List<Registration>> GetByEventIdAsync(string eventId) =>
+    public Task<Registration?> GetByIdAsync(int id) => db.Registrations.FindAsync(id).AsTask();
+    public Task<List<Registration>> GetByEventIdAsync(int eventId) =>
         db.Registrations.Where(r => r.EventId == eventId).ToListAsync();
     public async Task SaveAsync(Registration reg) { db.Registrations.Add(reg); await db.SaveChangesAsync(); }
 }
 
 public class FixtureRepository(SportHubDbContext db) : IFixtureRepository
 {
-    public Task<List<Fixture>> GetByEventIdAsync(string eventId) =>
+    public Task<List<Fixture>> GetByEventIdAsync(int eventId) =>
         db.Fixtures.Where(f => f.EventId == eventId).ToListAsync();
     public async Task SaveAsync(Fixture fixture) { db.Fixtures.Add(fixture); await db.SaveChangesAsync(); }
 }

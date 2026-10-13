@@ -9,3 +9,6 @@
 
 # Environment
 appsettings.Development.json
+
+# Continue AI config (may contain API keys)
+.continue/

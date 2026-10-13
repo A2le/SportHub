@@ -8,7 +8,7 @@ public class SportHubDbContextFactory : IDesignTimeDbContextFactory<SportHubDbCo
     public SportHubDbContext CreateDbContext(string[] args)
     {
         var options = new DbContextOptionsBuilder<SportHubDbContext>()
-            .UseMySql("Server=localhost;Database=sporthub;User=root;Password=root;",
+            .UseMySql("Server=localhost;Port=3306;User=root;Password=;Database=sporthub;",
                 new MySqlServerVersion(new Version(8, 0, 0)))
             .Options;
         return new SportHubDbContext(options);

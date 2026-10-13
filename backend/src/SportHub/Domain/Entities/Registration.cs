@@ -2,9 +2,9 @@ namespace SportHub.Domain.Entities;
 
 public class Registration
 {
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string EventId { get; set; } = string.Empty;
-    public string TeamId { get; set; } = string.Empty;
-    public string Status { get; set; } = "Pending"; // Pending, Confirmed, Rejected
+    public int Id { get; set; }
+    public int EventId { get; set; }
+    public int TeamId { get; set; }
+    public string Status { get; set; } = "Pending";
     public DateTime RegisteredAt { get; set; } = DateTime.UtcNow;
 }
