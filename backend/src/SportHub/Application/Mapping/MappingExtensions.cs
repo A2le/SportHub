@@ -22,18 +22,4 @@ public class TeamProfile : Profile
     }
 }
 
-public class FixtureProfile : Profile
-{
-    public FixtureProfile()
-    {
-        CreateMap<Fixture, FixtureResponse>();
-    }
-}
 
-public class RegistrationProfile : Profile
-{
-    public RegistrationProfile()
-    {
-        CreateMap<Registration, RegistrationResponse>();
-    }
-}

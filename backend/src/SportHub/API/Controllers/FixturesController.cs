@@ -14,5 +14,29 @@ public class FixturesController(FixtureService fixtureService) : ControllerBase
 
     [HttpPost("generate")]
     public async Task<IActionResult> Generate(GenerateFixturesRequest request)
-        => Ok(await fixtureService.GenerateAsync(request));
+    {
+        try
+        {
+            var fixtures = await fixtureService.GenerateAsync(request);
+            return Ok(fixtures);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create(CreateFixtureRequest request)
+    {
+        try
+        {
+            var fixture = await fixtureService.CreateAsync(request);
+            return Ok(fixture);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
 }

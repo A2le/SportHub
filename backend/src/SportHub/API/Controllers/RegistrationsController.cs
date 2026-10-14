@@ -18,7 +18,25 @@ public class RegistrationsController(RegistrationService registrationService) : 
     [HttpPost]
     public async Task<IActionResult> Create(CreateRegistrationRequest request)
     {
-        var reg = await registrationService.CreateAsync(request);
-        return CreatedAtAction(nameof(Get), new { id = reg.Id }, reg);
+        try
+        {
+            var reg = await registrationService.CreateAsync(request);
+            return CreatedAtAction(nameof(Get), new { id = reg.Id }, reg);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    [HttpGet("event/{eventId:int}")]
+    public async Task<IActionResult> GetByEvent(int eventId)
+    {
+        var registrations = await registrationService.GetByEventAsync(eventId);
+        return Ok(registrations);
     }
 }

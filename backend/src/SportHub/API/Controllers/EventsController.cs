@@ -21,15 +21,29 @@ public class EventsController(EventService eventService) : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create(CreateEventRequest request)
     {
-        var ev = await eventService.CreateAsync(request);
-        return CreatedAtAction(nameof(Get), new { id = ev.Id }, ev);
+        try
+        {
+            var ev = await eventService.CreateAsync(request);
+            return CreatedAtAction(nameof(Get), new { id = ev.Id }, ev);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
 
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, UpdateEventRequest request)
     {
-        var ev = await eventService.UpdateAsync(id, request);
-        return ev is null ? NotFound() : Ok(ev);
+        try
+        {
+            var ev = await eventService.UpdateAsync(id, request);
+            return ev is null ? NotFound() : Ok(ev);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
 
     [HttpDelete("{id:int}")]

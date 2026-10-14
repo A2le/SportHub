@@ -13,10 +13,9 @@ public class Event
     public int NumberOfTeams { get; set; }
     public string Description { get; set; } = string.Empty;
     public string AgeGroups { get; set; } = string.Empty;
-    public int NumberOfPitches { get; set; }
     public string PitchStartTime { get; set; } = string.Empty;
     public string PitchEndTime { get; set; } = string.Empty;
-    public int MatchDurationMinutes { get; set; } = 30;
+    public int MatchDurationMinutes { get; set; } = 90;
     public int BreakBetweenMatchesMinutes { get; set; } = 10;
     public string CreatedAt { get; set; } = DateTime.UtcNow.ToString("o");
 }
