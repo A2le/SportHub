@@ -8,13 +8,12 @@ public record CreateEventRequest(
     string StartTime,
     string EndTime,
     int NumberOfTeams,
-    int NumberOfPitches,
     string PitchStartTime,
     string PitchEndTime,
     string Description = "",
     string AgeGroups = "",
     string EventType = "School Football Festival",
-    int MatchDurationMinutes = 30,
+    int MatchDurationMinutes = 90,
     int BreakBetweenMatchesMinutes = 10);
 
 public record UpdateEventRequest(
@@ -25,7 +24,6 @@ public record UpdateEventRequest(
     string? StartTime,
     string? EndTime,
     int? NumberOfTeams,
-    int? NumberOfPitches,
     string? PitchStartTime,
     string? PitchEndTime,
     string? Description,
@@ -46,7 +44,6 @@ public record EventResponse(
     int NumberOfTeams,
     string Description,
     string AgeGroups,
-    int NumberOfPitches,
     string PitchStartTime,
     string PitchEndTime,
     int MatchDurationMinutes,

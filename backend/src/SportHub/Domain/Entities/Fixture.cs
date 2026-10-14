@@ -7,6 +7,6 @@ public class Fixture
     public int HomeTeamId { get; set; }
     public int AwayTeamId { get; set; }
     public int PitchId { get; set; }
-    public DateTime ScheduledAt { get; set; }
+    public string KickOffTime { get; set; } = string.Empty;
     public string Status { get; set; } = "Scheduled";
 }
