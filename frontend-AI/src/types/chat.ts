@@ -1,11 +1,13 @@
 export type ChatRole = "user" | "assistant";
 
 export interface Registration {
+  eventId: number;
   teamName: string;
-  school: string;
+  schoolName: string;
+  coachName: string;
+  coachPhone: string;
   ageGroup: string;
-  players: number;
-  coach: string;
+  division: string;
 }
 
 export type RegistrationStatus =
@@ -34,22 +36,4 @@ export interface AgentResponse {
   reply: string;
   status: RegistrationStatus;
   registration?: Registration | null;
-}
-
-export interface CreateRegistrationRequest {
-  eventId: number;
-  teamName: string;
-  school: string;
-  ageGroup: string;
-  players: number;
-  coach: string;
-  conversationId: string;
-}
-
-export interface RegistrationResult {
-  id: number;
-  eventId: number;
-  teamId: number;
-  status: "registered" | "pending";
-  teamName: string;
 }

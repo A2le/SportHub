@@ -17,11 +17,13 @@ export default function RegistrationSummary({
   registration,
 }: Props) {
   const fields = [
-    ["Team", registration.teamName],
-    ["School", registration.school],
-    ["Age Group", registration.ageGroup],
-    ["Players", registration.players.toString()],
-    ["Coach", registration.coach],
+    ["Event ID", String(registration.eventId)],
+  ["Team", registration.teamName],
+  ["School", registration.schoolName],
+  ["Age Group", registration.ageGroup],
+  ["Coach", registration.coachName],
+  ["Coach Phone", registration.coachPhone],
+  ["Division", registration.division]
   ];
 
   return (

@@ -27,6 +27,20 @@ builder.Services.AddScoped<RegistrationService>();
 builder.Services.AddScoped<FixtureService>();
 
 builder.Services.AddControllers();
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(
+        policy =>
+        {
+            policy.WithOrigins("http://localhost:5173", 
+                             "http://localhost:5174", 
+                             "http://*.localhost:5173")
+                .SetIsOriginAllowedToAllowWildcardSubdomains()
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials(); // Required for SignalR
+        });
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -34,5 +48,6 @@ var app = builder.Build();
 
 app.UseSwagger();
 app.UseSwaggerUI();
+app.UseCors();
 app.MapControllers();
 app.Run();

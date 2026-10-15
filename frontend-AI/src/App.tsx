@@ -1,8 +1,8 @@
-//import CoachChatPage from "./pages/CoachChatPage";
-import WhatsAppMonitorPage from "./pages/WhatsAppMonitorPage";
+import CoachChatPage from "./pages/CoachChatPage";
+//import WhatsAppMonitorPage from "./pages/WhatsAppMonitorPage";
 
 export default function App() {
-  //return <CoachChatPage />;
-    return <WhatsAppMonitorPage />;
+  return <CoachChatPage />;
+    //return <WhatsAppMonitorPage />;
 
 }
