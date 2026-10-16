@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { eventsApi } from "../api";
 
 import {
   Box,
@@ -37,24 +38,24 @@ export default function CreateEvent() {
   const [breakDuration, setBreakDuration] =
     useState("");
 
-  const handleSubmit = () => {
-    console.log({
-      eventName,
+  const handleSubmit = async () => {
+    const ageGroups = [u13 && "U13", u15 && "U15"].filter(Boolean).join(",");
+    await eventsApi.create({
+      name: eventName,
       eventType,
-      date,
       venue,
-      ageGroups: {
-        u13,
-        u15,
-      },
-      numberOfTeams,
-      numberOfPitches,
+      startDate: date,
+      endDate: date,
       startTime,
       endTime,
-      matchDuration,
-      breakDuration,
+      numberOfTeams: Number(numberOfTeams),
+      numberOfPitches: Number(numberOfPitches),
+      pitchStartTime: startTime,
+      pitchEndTime: endTime,
+      ageGroups,
+      matchDurationMinutes: Number(matchDuration),
+      breakBetweenMatchesMinutes: Number(breakDuration),
     });
-
     alert("Event created successfully!");
   };
 
