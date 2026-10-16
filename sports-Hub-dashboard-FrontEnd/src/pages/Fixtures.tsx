@@ -1,223 +1,242 @@
+import { useEffect, useState } from "react";
+
 import {
   Box,
   Card,
   CardContent,
   Chip,
-  Typography,
+  CircularProgress,
+  MenuItem,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
+  Typography,
 } from "@mui/material";
 
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
+import LocationOnOutlinedIcon from "@mui/icons-material/LocationOnOutlined";
 
 import Sidebar from "../components/Sidebar";
-import { tournaments } from "../data/mockData";
-import type { Tournament } from "../data/mockData";
-
-interface Fixture {
-  time: string;
-  pitch: string;
-  match: string;
-  tournamentId: string;
-}
-
-const event: Tournament = tournaments[0];
-
-const fixtures: Fixture[] = tournaments.map((t, i) => ({
-  time: `${8 + i}:00`,
-  pitch: `Pitch ${t.pitches || 1}`,
-  match: t.name,
-  tournamentId: t.id,
-}));
+import {
+  eventsApi,
+  fixturesApi,
+  teamsApi,
+  type EventResponse,
+  type FixtureResponse,
+  type TeamResponse,
+} from "../api";
 
 export default function Fixtures() {
+  const [events, setEvents] = useState<EventResponse[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState<number | "">("");
+  const [fixtures, setFixtures] = useState<FixtureResponse[]>([]);
+  const [teams, setTeams] = useState<TeamResponse[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    Promise.all([eventsApi.list(), teamsApi.list()]).then(([evs, tms]) => {
+      setEvents(evs);
+      setTeams(tms);
+      if (evs.length > 0) setSelectedEventId(evs[0].id);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (selectedEventId === "") return;
+    setLoading(true);
+    fixturesApi
+      .getByEvent(selectedEventId)
+      .then(setFixtures)
+      .finally(() => setLoading(false));
+  }, [selectedEventId]);
+
+  const teamName = (id: number) =>
+    teams.find((t) => t.id === id)?.name ?? `Team #${id}`;
+
+  const selectedEvent = events.find((e) => e.id === selectedEventId);
+
+  const nextFixture = fixtures.find((f) => f.status !== "Completed");
+
+  const formatDateTime = (iso: string) =>
+    new Date(iso).toLocaleString("en-ZA", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  const formatTime = (iso: string) =>
+    new Date(iso).toLocaleTimeString("en-ZA", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  const statusColor = (
+    status: string
+  ): "info" | "success" | "default" | "warning" => {
+    switch (status.toLowerCase()) {
+      case "completed": return "success";
+      case "inprogress": return "warning";
+      case "scheduled": return "info";
+      default: return "default";
+    }
+  };
+
   return (
-    <Box
-      sx={{
-        display: "flex",
-        minHeight: "100vh",
-        backgroundColor: "#f5f7fb",
-      }}
-    >
+    <Box sx={{ display: "flex", minHeight: "100vh", backgroundColor: "#f5f7fb" }}>
       <Sidebar />
 
-      <Box
-        component="main"
-        sx={{
-          marginLeft: "240px",
-          width: "calc(100% - 240px)",
-          p: 4,
-        }}
-      >
+      <Box component="main" sx={{ marginLeft: "240px", width: "calc(100% - 240px)", p: 4 }}>
         {/* Header */}
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 4, flexWrap: "wrap", gap: 2 }}>
+          <Box>
+            <Typography variant="h4" sx={{ fontWeight: 700 }}>Fixtures</Typography>
+            <Typography color="text.secondary" sx={{ mt: 0.5 }}>
+              Match schedule for your events
+            </Typography>
+          </Box>
 
-        <Box sx={{ mb: 4 }}>
-          <Typography
-            variant="h4"
-            sx={{ fontWeight: 700 }}
-          >
-            Fixtures
-          </Typography>
-
-          <Typography
-            color="text.secondary"
-            sx={{ mt: 0.5 }}
-          >
-            Match schedule for {event.name}
-          </Typography>
+          {events.length > 0 && (
+            <TextField
+              select
+              size="small"
+              label="Event"
+              value={selectedEventId}
+              onChange={(e) => setSelectedEventId(Number(e.target.value))}
+              sx={{ bgcolor: "white", minWidth: 240 }}
+            >
+              {events.map((ev) => (
+                <MenuItem key={ev.id} value={ev.id}>{ev.name}</MenuItem>
+              ))}
+            </TextField>
+          )}
         </Box>
 
         {/* Event Summary */}
-
-        <Card
-          sx={{
-            borderRadius: 3,
-            mb: 3,
-          }}
-        >
-          <CardContent sx={{ p: 3 }}>
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 2,
-              }}
-            >
-              <CalendarMonthIcon
-                sx={{ fontSize: 40 }}
-              />
-
-              <Box>
-                <Typography
-                  variant="h6"
-                  sx={{ fontWeight: 700 }}
-                >
-                  {event.date}
-                </Typography>
-
-                <Typography
-                  color="text.secondary"
-                >
-                  {event.venue} • {event.pitches} Pitch
-                </Typography>
+        {selectedEvent && (
+          <Card sx={{ borderRadius: 3, mb: 3 }}>
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                <CalendarMonthIcon sx={{ fontSize: 40, color: "#079447" }} />
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    {selectedEvent.name}
+                  </Typography>
+                  <Box sx={{ display: "flex", gap: 2, mt: 0.5, flexWrap: "wrap" }}>
+                    <Typography color="text.secondary" variant="body2">
+                      {selectedEvent.startDate}
+                    </Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <LocationOnOutlinedIcon fontSize="small" color="action" />
+                      <Typography color="text.secondary" variant="body2">
+                        {selectedEvent.venue} · {selectedEvent.numberOfPitches} pitch{selectedEvent.numberOfPitches !== 1 ? "es" : ""}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
               </Box>
-            </Box>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Next Match */}
-
-        <Card
-          sx={{
-            borderRadius: 3,
-            mb: 3,
-          }}
-        >
-          <CardContent sx={{ p: 3 }}>
-            <Typography
-              variant="h6"
-              sx={{ fontWeight: 700, mb: 2 }}
-            >
-              Next Match
-            </Typography>
-
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                p: 3,
-                borderRadius: 2,
-                backgroundColor: "#f8fafc",
-              }}
-            >
-              <Box>
-                <Typography
-                  variant="h6"
-                  sx={{ fontWeight: 700 }}
-                >
-                  {fixtures[0].match}
-                </Typography>
-
-                <Typography
-                  color="text.secondary"
-                  sx={{ mt: 0.5 }}
-                >
-                  {fixtures[0].pitch}
+        {nextFixture && (
+          <Card sx={{ borderRadius: 3, mb: 3 }}>
+            <CardContent sx={{ p: 3 }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>Next Match</Typography>
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  p: 3,
+                  borderRadius: 2,
+                  backgroundColor: "#f8fafc",
+                }}
+              >
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    {teamName(nextFixture.homeTeamId)} vs {teamName(nextFixture.awayTeamId)}
+                  </Typography>
+                  <Typography color="text.secondary" sx={{ mt: 0.5 }}>
+                    Pitch {nextFixture.pitchId}
+                  </Typography>
+                </Box>
+                <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                  {formatTime(nextFixture.scheduledAt)}
                 </Typography>
               </Box>
-
-              <Typography
-                variant="h4"
-                sx={{ fontWeight: 700 }}
-              >
-                {fixtures[0].time}
-              </Typography>
-            </Box>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Fixtures Table */}
-
         <Card sx={{ borderRadius: 3 }}>
           <CardContent sx={{ p: 0 }}>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>
-                      <strong>Time</strong>
-                    </TableCell>
-
-                    <TableCell>
-                      <strong>Pitch</strong>
-                    </TableCell>
-
-                    <TableCell>
-                      <strong>Match</strong>
-                    </TableCell>
-
-                    <TableCell>
-                      <strong>Status</strong>
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-
-                <TableBody>
-                  {fixtures.map((fixture) => (
-                    <TableRow key={fixture.time}>
-                      <TableCell>
-                        <Typography sx={{ fontWeight: 700 }}>
-                          {fixture.time}
-                        </Typography>
-                      </TableCell>
-
-                      <TableCell>
-                        {fixture.pitch}
-                      </TableCell>
-
-                      <TableCell>
-                        <Typography sx={{ fontWeight: 600 }}>
-                          {fixture.match}
-                        </Typography>
-                      </TableCell>
-
-                      <TableCell>
-                        <Chip
-                          label="Scheduled"
-                          color="info"
-                          size="small"
-                        />
-                      </TableCell>
+            {loading ? (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+                <CircularProgress />
+              </Box>
+            ) : (
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell><strong>Time</strong></TableCell>
+                      <TableCell><strong>Pitch</strong></TableCell>
+                      <TableCell><strong>Home Team</strong></TableCell>
+                      <TableCell><strong>Away Team</strong></TableCell>
+                      <TableCell><strong>Status</strong></TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                  </TableHead>
+
+                  <TableBody>
+                    {fixtures.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center" sx={{ py: 4, color: "text.secondary" }}>
+                          {selectedEventId === ""
+                            ? "Select an event to view fixtures."
+                            : "No fixtures found for this event."}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      fixtures.map((fixture) => (
+                        <TableRow key={fixture.id}>
+                          <TableCell>
+                            <Typography sx={{ fontWeight: 700 }}>
+                              {formatDateTime(fixture.scheduledAt)}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>Pitch {fixture.pitchId}</TableCell>
+                          <TableCell>
+                            <Typography sx={{ fontWeight: 600 }}>
+                              {teamName(fixture.homeTeamId)}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography sx={{ fontWeight: 600 }}>
+                              {teamName(fixture.awayTeamId)}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={fixture.status}
+                              color={statusColor(fixture.status)}
+                              size="small"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
           </CardContent>
         </Card>
       </Box>

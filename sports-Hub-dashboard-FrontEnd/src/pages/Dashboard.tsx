@@ -1,5 +1,5 @@
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -7,8 +7,8 @@ import {
   Button,
   Card,
   CardContent,
-  CardMedia,
   Chip,
+  CircularProgress,
   Grid,
   LinearProgress,
   MenuItem,
@@ -24,41 +24,35 @@ import SportsSoccerIcon from "@mui/icons-material/SportsSoccer";
 import LocationOnOutlinedIcon from "@mui/icons-material/LocationOnOutlined";
 
 import Sidebar from "../components/Sidebar";
-import { tournaments } from "../data/mockData";
+import { eventsApi, type EventResponse } from "../api";
 
 export default function Dashboard() {
   const navigate = useNavigate();
 
+  const [events, setEvents] = useState<EventResponse[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [sport, setSport] = useState("All");
 
-  const sports = [
-    "All",
-    ...new Set(tournaments.map((item) => item.sport)),
-  ];
+  useEffect(() => {
+    eventsApi.list()
+      .then(setEvents)
+      .finally(() => setLoading(false));
+  }, []);
 
-  const filteredTournaments = useMemo(() => {
-    return tournaments.filter((item) => {
+  const sports = ["All", ...new Set(events.map((e) => e.eventType))];
+
+  const filteredEvents = useMemo(() => {
+    return events.filter((item) => {
       const matchesSearch =
         item.name.toLowerCase().includes(search.toLowerCase()) ||
         item.venue.toLowerCase().includes(search.toLowerCase());
-
-      const matchesSport =
-        sport === "All" || item.sport === sport;
-
+      const matchesSport = sport === "All" || item.eventType === sport;
       return matchesSearch && matchesSport;
     });
-  }, [search, sport]);
+  }, [events, search, sport]);
 
-  const totalTeams = tournaments.reduce(
-    (sum, item) => sum + item.registeredTeams,
-    0
-  );
-
-  const upcomingEvents = tournaments.filter(
-    (item) => item.status === "Upcoming" ||
-      item.status === "Registration Open"
-  ).length;
+  const totalTeams = events.reduce((sum, e) => sum + e.numberOfTeams, 0);
 
   const formatDate = (date: string) =>
     new Date(`${date}T12:00:00`).toLocaleDateString("en-ZA", {
@@ -67,45 +61,14 @@ export default function Dashboard() {
       year: "numeric",
     });
 
-  const statusColor = (
-    status: string
-  ): "success" | "default" | "info" | "primary" => {
-    switch (status) {
-      case "Registration Open":
-        return "success";
-      case "Upcoming":
-        return "info";
-      case "Completed":
-        return "default";
-      default:
-        return "primary";
-    }
-  };
-
   return (
+    <Box sx={{ display: "flex", minHeight: "100vh", width: "100%", bgcolor: "#F3F6FA" }}>
+      <Sidebar />
 
-  <Box
-        sx={{
-          display: "flex",
-          minHeight: "100vh",
-          width: "100%",
-          bgcolor: "#F3F6FA",
-        }}
+      <Box
+        component="main"
+        sx={{ flex: 1, minWidth: 0, ml: "240px", p: { xs: 2, md: 4 }, bgcolor: "#F3F6FA", boxSizing: "border-box" }}
       >
-        <Sidebar />
-
-        <Box
-          component="main"
-          sx={{
-            flex: 1,
-            minWidth: 0,
-            ml: "240px",
-            p: { xs: 2, md: 4 },
-            bgcolor: "#F3F6FA",
-            boxSizing: "border-box",
-          }}
-        >
-
         {/* Page heading */}
         <Box
           sx={{
@@ -118,13 +81,9 @@ export default function Dashboard() {
           }}
         >
           <Box>
-            <Typography
-              variant="h4"
-              sx={{ fontWeight: 800, color: "#101D33" }}
-            >
+            <Typography variant="h4" sx={{ fontWeight: 800, color: "#101D33" }}>
               Your Tournaments
             </Typography>
-
             <Typography color="text.secondary" sx={{ mt: 1 }}>
               Manage your sports events in one place.
             </Typography>
@@ -151,55 +110,20 @@ export default function Dashboard() {
         {/* Summary cards */}
         <Grid container spacing={2} sx={{ mb: 4 }}>
           {[
-            {
-              label: "Total Tournaments",
-              value: tournaments.length,
-              icon: <EmojiEventsIcon />,
-            },
-            {
-              label: "Upcoming Events",
-              value: upcomingEvents,
-              icon: <CalendarMonthIcon />,
-            },
-            {
-              label: "Registered Teams",
-              value: totalTeams,
-              icon: <GroupsIcon />,
-            },
-            {
-              label: "Sports Categories",
-              value: sports.length - 1,
-              icon: <SportsSoccerIcon />,
-            },
+            { label: "Total Tournaments", value: events.length, icon: <EmojiEventsIcon /> },
+            { label: "Upcoming Events", value: events.length, icon: <CalendarMonthIcon /> },
+            { label: "Total Teams", value: totalTeams, icon: <GroupsIcon /> },
+            { label: "Sports Categories", value: sports.length - 1, icon: <SportsSoccerIcon /> },
           ].map((stat) => (
             <Grid size={{ xs: 12, sm: 6, lg: 3 }} key={stat.label}>
-              <Card
-                sx={{
-                  borderRadius: 3,
-                  height: "100%",
-                  boxShadow: "0 3px 15px rgba(16,29,51,0.05)",
-                }}
-              >
+              <Card sx={{ borderRadius: 3, height: "100%", boxShadow: "0 3px 15px rgba(16,29,51,0.05)" }}>
                 <CardContent sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-                  <Box
-                    sx={{
-                      bgcolor: "#DDF7E7",
-                      color: "#079447",
-                      borderRadius: 2,
-                      p: 1.5,
-                      display: "flex",
-                    }}
-                  >
+                  <Box sx={{ bgcolor: "#DDF7E7", color: "#079447", borderRadius: 2, p: 1.5, display: "flex" }}>
                     {stat.icon}
                   </Box>
-
                   <Box>
-                    <Typography variant="body2" color="text.secondary">
-                      {stat.label}
-                    </Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 800, color: "#101D33" }}>
-                      {stat.value}
-                    </Typography>
+                    <Typography variant="body2" color="text.secondary">{stat.label}</Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 800, color: "#101D33" }}>{stat.value}</Typography>
                   </Box>
                 </CardContent>
               </Card>
@@ -230,7 +154,6 @@ export default function Dashboard() {
               onChange={(e) => setSearch(e.target.value)}
               sx={{ bgcolor: "white", minWidth: 230 }}
             />
-
             <TextField
               select
               size="small"
@@ -248,15 +171,14 @@ export default function Dashboard() {
           </Box>
         </Box>
 
-        {/* Tournament cards */}
-        <Grid container spacing={3}>
-          {filteredTournaments.map((item) => {
-            const progress = Math.min(
-              100,
-              (item.registeredTeams / item.totalTeams) * 100
-            );
-
-            return (
+        {/* Event cards */}
+        {loading ? (
+          <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <Grid container spacing={3}>
+            {filteredEvents.map((item) => (
               <Grid size={{ xs: 12, sm: 6, xl: 4 }} key={item.id}>
                 <Card
                   sx={{
@@ -267,99 +189,52 @@ export default function Dashboard() {
                     overflow: "hidden",
                     boxShadow: "0 4px 18px rgba(16,29,51,0.07)",
                     transition: "transform 0.2s, box-shadow 0.2s",
-                    "&:hover": {
-                      transform: "translateY(-4px)",
-                      boxShadow: "0 10px 28px rgba(16,29,51,0.12)",
-                    },
+                    "&:hover": { transform: "translateY(-4px)", boxShadow: "0 10px 28px rgba(16,29,51,0.12)" },
                   }}
                 >
-                  <Box sx={{ position: "relative" }}>
-                    <CardMedia
-                      component="img"
-                      image={item.image}
-                      alt={`${item.sport} tournament`}
-                      sx={{ height: 190, objectFit: "cover" }}
-                    />
-
+                  <CardContent sx={{ p: 2.5, display: "flex", flexDirection: "column", flexGrow: 1 }}>
                     <Chip
-                      label={item.status}
-                      color={statusColor(item.status)}
+                      label={item.eventType}
                       size="small"
-                      sx={{
-                        position: "absolute",
-                        top: 14,
-                        left: 14,
-                        fontWeight: 700,
-                        bgcolor:
-                          item.status === "Draft" ? "#E5E7EB" : undefined,
-                      }}
+                      sx={{ alignSelf: "flex-start", mb: 1.5, fontWeight: 700 }}
                     />
-                  </Box>
 
-                  <CardContent
-                    sx={{
-                      p: 2.5,
-                      display: "flex",
-                      flexDirection: "column",
-                      flexGrow: 1,
-                    }}
-                  >
-                    <Typography
-                      variant="h6"
-                      sx={{ fontWeight: 800, color: "#101D33", mb: 2 }}
-                    >
+                    <Typography variant="h6" sx={{ fontWeight: 800, color: "#101D33", mb: 2 }}>
                       {item.name}
                     </Typography>
 
                     <Box sx={{ display: "flex", gap: 1, mb: 1.5 }}>
                       <CalendarMonthIcon fontSize="small" color="action" />
-                      <Typography variant="body2">
-                        {formatDate(item.date)}
-                      </Typography>
+                      <Typography variant="body2">{formatDate(item.startDate)}</Typography>
                     </Box>
 
                     <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
                       <LocationOnOutlinedIcon fontSize="small" color="action" />
-                      <Typography variant="body2" color="text.secondary">
-                        {item.venue}
-                      </Typography>
+                      <Typography variant="body2" color="text.secondary">{item.venue}</Typography>
                     </Box>
 
-                    <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2 }}>
-                      <Chip label={item.sport} size="small" />
-                      {item.ageGroups.map((age) => (
-                        <Chip key={age} label={age} size="small" variant="outlined" />
-                      ))}
-                    </Box>
+                    {item.ageGroups && (
+                      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2 }}>
+                        {item.ageGroups.split(",").map((age) => (
+                          <Chip key={age} label={age.trim()} size="small" variant="outlined" />
+                        ))}
+                      </Box>
+                    )}
 
                     <Box sx={{ mt: "auto" }}>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          mb: 1,
-                        }}
-                      >
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                          {item.registeredTeams} / {item.totalTeams} teams
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {Math.round(progress)}%
-                        </Typography>
-                      </Box>
+                      <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>
+                        {item.numberOfTeams} teams · {item.numberOfPitches} pitches
+                      </Typography>
 
                       <LinearProgress
                         variant="determinate"
-                        value={progress}
+                        value={100}
                         sx={{
                           height: 8,
                           borderRadius: 5,
                           mb: 2.5,
                           bgcolor: "#E2E8F0",
-                          "& .MuiLinearProgress-bar": {
-                            bgcolor: "#079447",
-                            borderRadius: 5,
-                          },
+                          "& .MuiLinearProgress-bar": { bgcolor: "#079447", borderRadius: 5 },
                         }}
                       />
 
@@ -382,15 +257,13 @@ export default function Dashboard() {
                   </CardContent>
                 </Card>
               </Grid>
-            );
-          })}
-        </Grid>
+            ))}
+          </Grid>
+        )}
 
-        {filteredTournaments.length === 0 && (
+        {!loading && filteredEvents.length === 0 && (
           <Card sx={{ p: 5, textAlign: "center", borderRadius: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              No tournaments found
-            </Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>No tournaments found</Typography>
             <Typography color="text.secondary" sx={{ mt: 1 }}>
               Try another search or select a different sport.
             </Typography>
