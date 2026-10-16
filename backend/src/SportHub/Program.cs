@@ -47,7 +47,27 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddCors(options =>
+    options.AddDefaultPolicy(policy =>
+        policy.WithOrigins("http://localhost:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod()));
+
 builder.Services.AddControllers();
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(
+        policy =>
+        {
+            policy.WithOrigins("http://localhost:5173", 
+                             "http://localhost:5174", 
+                             "http://*.localhost:5173")
+                .SetIsOriginAllowedToAllowWildcardSubdomains()
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials(); // Required for SignalR
+        });
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -59,5 +79,7 @@ app.UseSwaggerUI();
 // Enable CORS
 app.UseCors("AllowAll");
 
+
+app.UseCors();
 app.MapControllers();
 app.Run();
