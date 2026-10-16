@@ -11,7 +11,7 @@ import {
 
 import { getTeamFixtures } from "../services/fixtureApi";
 import type { TeamFixturesResponse } from "../types/fixture";
-
+import FixtureCard from "./FixtureCard";
 interface Props {
   eventId: number;
 }
@@ -82,16 +82,30 @@ export default function TeamFixtureLookup({ eventId }: Props) {
 
 {fixtures && fixtures.fixtureCount > 0 && (
   <Box sx={{ bgcolor: "#f5f7fb", p: 2, borderRadius: 2 }}>
-    <Typography variant="h6" sx={{mb:2}}>
+    {/* <Typography variant="h6" sx={{mb:2}}>
+      Team Fixtures ({fixtures.fixtureCount})
+    </Typography> */}
+
+   {fixtures && fixtures.fixtureCount === 0 && (
+  <Alert severity="info">
+    No fixtures are available for this team yet.
+  </Alert>
+)}
+
+{fixtures && fixtures.fixtureCount > 0 && (
+  <Box sx={{ mt: 3 }}>
+    <Typography variant="h6" sx={{fontWeight:700, md:2}}>
       Team Fixtures ({fixtures.fixtureCount})
     </Typography>
 
-    <Typography
-      component="pre"
-      sx={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
-    >
-      {JSON.stringify(fixtures.fixtures, null, 2)}
-    </Typography>
+    {fixtures.fixtures.map((fixture) => (
+      <FixtureCard
+        key={fixture.id}
+        fixture={fixture}
+      />
+    ))}
+  </Box>
+)}
   </Box>
 )}
       </Stack>

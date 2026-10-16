@@ -23,6 +23,7 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   registration?: Registration;
+  quickReplies?: QuickReply[];
 }
 
 export interface AgentRequest {
@@ -36,4 +37,10 @@ export interface AgentResponse {
   reply: string;
   status: RegistrationStatus;
   registration?: Registration | null;
+  quickReplies?: QuickReply[];
+}
+
+export interface QuickReply {
+  label: string;
+  value: string;
 }

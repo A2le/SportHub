@@ -1,5 +1,8 @@
 import { api } from "./api";
 import type { Registration } from "../types/chat";
+import type {
+  RegistrationStatusResponse,
+} from "../types/registrationStatus";
 
 export async function checkCanRegister(eventId: number) {
   const response = await api.get(
@@ -8,10 +11,13 @@ export async function checkCanRegister(eventId: number) {
   return response.data;
 }
 
-export async function getRegistrationStatus(eventId: number) {
-  const response = await api.get(
+export async function getRegistrationStatus(
+  eventId: number
+): Promise<RegistrationStatusResponse> {
+  const response = await api.get<RegistrationStatusResponse>(
     `/api/agent-tools/events/${eventId}/registration-status`
   );
+
   return response.data;
 }
 
@@ -42,3 +48,4 @@ export async function registerTeam(data: Registration) {
 
   return response.data;
 }
+

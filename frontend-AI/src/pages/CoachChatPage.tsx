@@ -12,6 +12,7 @@ import axios from "axios";
 import type { AgentEventInfo } from "../types/agentEvent";
 import type {
   ChatMessage as Message,
+  QuickReply,
   Registration,
   RegistrationStatus,
 } from "../types/chat";
@@ -33,6 +34,10 @@ import {
 import { readCanRegister } from "../utils/registration";
 import TeamFixtureLookup from "../components/TeamFixtureLookup";
 import { resetMockConversation } from "../services/mockAgent";
+import { Avatar, Stack, Chip, Skeleton } from "@mui/material";
+
+import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
+
 
 const EVENT_ID = Number(import.meta.env.VITE_EVENT_ID ?? 1);
 
@@ -40,6 +45,7 @@ function makeMessage(
   role: "user" | "assistant",
   content: string,
   registration?: Registration,
+  quickReplies?: QuickReply[],
 ): Message {
   return {
     id: crypto.randomUUID(),
@@ -47,6 +53,7 @@ function makeMessage(
     content,
     timestamp: new Date().toISOString(),
     registration,
+    quickReplies,
   };
 }
 
@@ -63,7 +70,8 @@ export default function CoachChatPage() {
   const [draft, setDraft] = useState<Registration | null>(null);
 
   const [conversationId] = useState(() => crypto.randomUUID());
-
+const [registrationRefreshKey, setRegistrationRefreshKey] =
+  useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const busy = loading || saving;
@@ -85,7 +93,9 @@ export default function CoachChatPage() {
         setMessages([
           makeMessage(
             "assistant",
-            `Welcome to ${data.name}! Type "register" to register your team.`,
+            `Welcome to ${data.name}! How can I assist you today?`,
+            undefined,
+            [{ label: "Register Team", value: "register" }],
           ),
         ]);
       })
@@ -164,6 +174,7 @@ export default function CoachChatPage() {
           "assistant",
           response.reply,
           response.registration ?? undefined,
+          response.quickReplies,
         ),
       ]);
     } catch {
@@ -200,7 +211,7 @@ export default function CoachChatPage() {
 
       setStatus("completed");
       setDraft(null);
-
+setRegistrationRefreshKey((prev) => prev + 1);
       const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
 
       setMessages((prev) => [
@@ -258,7 +269,10 @@ export default function CoachChatPage() {
             <EventDetailsCard event={event} />
 
             <Box sx={{ mb: 3 }}>
-              <RegistrationStatusCard eventId={event.id} />
+              <RegistrationStatusCard
+    eventId={event.id}
+    refreshKey={registrationRefreshKey}
+  />
             </Box>
           </>
         )}
@@ -278,28 +292,106 @@ export default function CoachChatPage() {
             overflow: "hidden",
           }}
         >
-          <Box sx={{ p: 2, borderBottom: "1px solid #eee" }}>
-            <Typography sx={{ fontWeight: 700 }}>AI Coach Assistant</Typography>
-            <Typography variant="caption" color="text.secondary">
-              Web registration assistant — guided demo
-            </Typography>
+          <Box
+            sx={{
+              px: 3,
+              py: 2,
+              borderBottom: "1px solid #E3E8EF",
+              bgcolor: "#FFFFFF",
+            }}
+          >
+            <Stack direction="row" sx={{ alignItems: "center" }} spacing={2}>
+              <Avatar
+                sx={{
+                  bgcolor: "#E6F4ED",
+                  color: "#176B54",
+                  width: 44,
+                  height: 44,
+                }}
+              >
+                <SmartToyOutlinedIcon />
+              </Avatar>
+
+              <Box sx={{ flex: 1 }}>
+                <Typography sx={{ fontWeight: 700 }}>
+                  Amusema AI Assistant
+                </Typography>
+
+                <Typography variant="caption" color="text.secondary">
+                  Sports event registration assistant
+                </Typography>
+              </Box>
+
+              <Chip
+                size="small"
+                label="Demo AI"
+                variant="outlined"
+                sx={{
+                  borderColor: "#176B54",
+                  color: "#176B54",
+                  fontWeight: 600,
+                }}
+              />
+            </Stack>
           </Box>
 
           <Box
             sx={{
               flex: 1,
               overflowY: "auto",
-              p: 2,
+              px: { xs: 2, md: 3 },
+              py: 3,
+              bgcolor: "#FAFBFC",
             }}
           >
-            {messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
-            ))}
+            {messages.map((message, index) => {
+              const isLatestMessage = index === messages.length - 1;
+
+              return (
+                <ChatMessage
+                  key={message.id}
+                  message={message}
+                  onQuickReply={
+                    isLatestMessage && !busy && status !== "review"
+                      ? (value) => void handleSend(value)
+                      : undefined
+                  }
+                  quickRepliesDisabled={!isLatestMessage || busy}
+                />
+              );
+            })}
 
             {loading && (
-              <Typography color="text.secondary">
-                Assistant is typing...
-              </Typography>
+              <Stack
+                direction="row"
+                spacing={1.5}
+                sx={{ alignItems: "flex-end", mb: 2 }}
+              >
+                <Avatar
+                  sx={{
+                    bgcolor: "#E6F4ED",
+                    color: "#176B54",
+                    width: 34,
+                    height: 34,
+                  }}
+                >
+                  <SmartToyOutlinedIcon fontSize="small" />
+                </Avatar>
+
+                <Box
+                  sx={{
+                    bgcolor: "#F3F5F8",
+                    borderRadius: 3,
+                    p: 2,
+                    width: 140,
+                  }}
+                >
+                  <Stack spacing={1}>
+                    <Skeleton variant="text" width="90%" />
+                    <Skeleton variant="text" width="60%" />
+                  </Stack>
+                </Box>
+              </Stack>
             )}
 
             {status === "review" && draft && (

@@ -3,6 +3,7 @@ import type {
   AgentResponse,
   Registration,
   RegistrationStatus,
+  QuickReply,
 } from "../types/chat";
 
 type Step =
@@ -27,12 +28,14 @@ function reply(
   text: string,
   status: RegistrationStatus,
   registration?: Registration,
+  quickReplies?: QuickReply[],
 ): AgentResponse {
   return {
     conversation_id: id,
     reply: text,
     status,
     registration: registration ?? null,
+    quickReplies,
   };
 }
 
@@ -66,8 +69,10 @@ export async function mockAgentReply(
       if (!lower.includes("register")) {
         return reply(
           id,
-          "I can help you register a team. Type 'register' to start.",
+          "Welcome! What would you like help with today?",
           "idle",
+          undefined,
+          [{ label: "Register Team", value: "register" }],
         );
       }
 
@@ -130,12 +135,15 @@ export async function mockAgentReply(
 
       return reply(
         id,
-        `Which age group? ${
-          allowedAgeGroups.length
-            ? allowedAgeGroups.join(", ")
-            : "Please specify the event's age group"
+        `Which age group would you like to register for? ${
+          allowedAgeGroups.length ? allowedAgeGroups.join(", ") : ""
         }`,
         "collecting",
+        undefined,
+        allowedAgeGroups.map((age) => ({
+          label: age,
+          value: age,
+        })),
       );
     }
 
@@ -159,8 +167,13 @@ export async function mockAgentReply(
 
       return reply(
         id,
-        "Which division is your team registering for? Boys or Girls?",
+        "Which division is your team registering for?",
         "collecting",
+        undefined,
+        [
+          { label: "Boys", value: "Boys" },
+          { label: "Girls", value: "Girls" },
+        ],
       );
     }
 

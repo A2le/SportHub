@@ -1,17 +1,24 @@
 export interface Fixture {
   id: number;
-  eventId: number;
+  kickOffTime: string;
   homeTeam: string;
   awayTeam: string;
-  pitchName: string;
-  startTime: string;
-  endTime?: string;
-  status?: string;
+  pitchId: number;
+  ageGroup: string;
+  division: string;
+  group: string;
+}
+
+export interface GenerateFixturesResponse {
+  success: boolean;
+  message: string;
+  fixtureCount: number;
+  fixtures: Fixture[];
 }
 
 export interface TeamFixturesResponse {
   teamId: number;
   eventId: number;
   fixtureCount: number;
-  fixtures: unknown[];
+  fixtures: Fixture[];
 }
