@@ -8,3 +8,10 @@ CREATE TABLE teams (
     CreatedAt   DATETIME     NOT NULL,
     CONSTRAINT pk_teams PRIMARY KEY (Id)
 );
+
+-- Add CoachEmail column to Teams table
+ALTER TABLE `Teams` 
+ADD COLUMN `CoachEmail` VARCHAR(255) NOT NULL DEFAULT '' COMMENT 'Coach email address for notifications';
+
+-- Verify the column was added
+DESCRIBE `Teams`;

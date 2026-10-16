@@ -33,8 +33,11 @@ public class AgentToolsController(
                 request.Description,
                 request.AgeGroups,
                 request.EventType,
+                "Football", // Default sport category
                 request.MatchDurationMinutes,
-                request.BreakBetweenMatchesMinutes
+                request.BreakBetweenMatchesMinutes,
+                request.MaxMatchesPerTeam,
+                request.MinRestTimeBetweenMatches
             );
 
             var eventResponse = await eventService.CreateAsync(eventRequest);
@@ -101,16 +104,21 @@ public class AgentToolsController(
         if (eventInfo == null) 
             return NotFound($"Event {eventId} not found");
 
-        // Get registrations count (you'll need to implement this)
-        // For now, return mock data
+        // Get actual registration count
+        var registrations = await registrationService.GetByEventAsync(eventId);
+        var confirmedCount = registrations.Count(r => r.Status == "Confirmed");
+        var availableSpots = eventInfo.NumberOfTeams - confirmedCount;
+        var registrationOpen = confirmedCount < eventInfo.NumberOfTeams;
+
         return Ok(new
         {
             EventId = eventId,
             EventName = eventInfo.Name,
             MaxTeams = eventInfo.NumberOfTeams,
-            RegisteredTeams = 0, // TODO: Get actual count
-            AvailableSpots = eventInfo.NumberOfTeams,
-            RegistrationOpen = true
+            RegisteredTeams = confirmedCount,
+            AvailableSpots = availableSpots,
+            RegistrationOpen = registrationOpen,
+            Status = registrationOpen ? "Open for Registration" : "Registration Full"
         });
     }
 
@@ -128,6 +136,7 @@ public class AgentToolsController(
                 request.SchoolName,
                 request.CoachName,
                 request.CoachPhone,
+                request.CoachEmail,
                 request.AgeGroup
             );
             
@@ -227,14 +236,20 @@ public class AgentToolsController(
             {
                 f.Id,
                 f.KickOffTime,
-                HomeTeam = f.HomeTeamName,
-                AwayTeam = f.AwayTeamName,
                 Opponent = f.HomeTeamId == teamId ? f.AwayTeamName : f.HomeTeamName,
+                IsHomeGame = f.HomeTeamId == teamId,
+                Venue = f.HomeTeamId == teamId ? "Home" : "Away",
                 f.PitchId,
                 f.Status,
                 f.AgeGroup,
                 f.Division,
-                Group = $"{f.AgeGroup}-{f.Division}"
+                Group = $"{f.AgeGroup}-{f.Division}",
+                // Include full details for reference
+                Details = new
+                {
+                    HomeTeam = f.HomeTeamName,
+                    AwayTeam = f.AwayTeamName
+                }
             })
         });
     }
@@ -247,23 +262,31 @@ public class AgentToolsController(
     {
         try
         {
-            // This will throw if capacity is reached
             var eventInfo = await eventService.GetAsync(eventId);
             if (eventInfo == null) 
                 return NotFound($"Event {eventId} not found");
 
-            // TODO: Implement actual capacity check
+            // Get actual registration count
+            var registrations = await registrationService.GetByEventAsync(eventId);
+            var confirmedCount = registrations.Count(r => r.Status == "Confirmed");
+            var availableSpots = eventInfo.NumberOfTeams - confirmedCount;
+            var canRegister = confirmedCount < eventInfo.NumberOfTeams;
+
             return Ok(new
             {
                 EventId = eventId,
-                CanRegister = true,
-                AvailableSpots = eventInfo.NumberOfTeams,
-                Message = "Registration is open"
+                CanRegister = canRegister,
+                AvailableSpots = availableSpots,
+                RegisteredTeams = confirmedCount,
+                MaxTeams = eventInfo.NumberOfTeams,
+                Message = canRegister 
+                    ? $"Registration is open. {availableSpots} spots remaining."
+                    : "Registration is full. Event has reached maximum capacity."
             });
         }
-        catch (InvalidOperationException ex)
+        catch (Exception ex)
         {
-            return Ok(new
+            return BadRequest(new
             {
                 EventId = eventId,
                 CanRegister = false,
@@ -289,7 +312,9 @@ public record CreateEventForAgentRequest(
     string AgeGroups = "U13, U15",
     string EventType = "School Football Festival",
     int MatchDurationMinutes = 60,
-    int BreakBetweenMatchesMinutes = 15
+    int BreakBetweenMatchesMinutes = 15,
+    int MaxMatchesPerTeam = 3,
+    int MinRestTimeBetweenMatches = 60
 );
 
 public record RegisterTeamForAgentRequest(
@@ -298,14 +323,11 @@ public record RegisterTeamForAgentRequest(
     string SchoolName,
     string CoachName,
     string CoachPhone,
+    string CoachEmail,
     string AgeGroup,
     string Division = ""
 );
 
 public record GenerateFixturesForAgentRequest(
-    int PitchId
-);
-
-public record GenerateFixturesWithDivisionsRequest(
     int PitchId
 );

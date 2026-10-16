@@ -1,0 +1,282 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "SportHub Tournament Management API",
+    "description": "AI agent tools for managing football tournaments and team registrations",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://your-api-domain.com",
+      "description": "SportHub API Server"
+    }
+  ],
+  "paths": {
+    "/api/agent-tools/create-event": {
+      "post": {
+        "operationId": "createEvent",
+        "summary": "Create a new football event/festival",
+        "description": "Create a new football event/festival with venue, dates, capacity, and pitch availability",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "venue", "startDate", "endDate", "startTime", "endTime", "numberOfTeams", "pitchStartTime", "pitchEndTime"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Name of the football event"
+                  },
+                  "venue": {
+                    "type": "string",
+                    "description": "Venue/location where the event will be held"
+                  },
+                  "startDate": {
+                    "type": "string",
+                    "description": "Event start date in YYYY-MM-DD format"
+                  },
+                  "endDate": {
+                    "type": "string",
+                    "description": "Event end date in YYYY-MM-DD format"
+                  },
+                  "startTime": {
+                    "type": "string",
+                    "description": "Event start time in HH:mm format"
+                  },
+                  "endTime": {
+                    "type": "string",
+                    "description": "Event end time in HH:mm format"
+                  },
+                  "numberOfTeams": {
+                    "type": "integer",
+                    "description": "Maximum number of teams allowed"
+                  },
+                  "pitchStartTime": {
+                    "type": "string",
+                    "description": "Pitch availability start time"
+                  },
+                  "pitchEndTime": {
+                    "type": "string",
+                    "description": "Pitch availability end time"
+                  },
+                  "ageGroups": {
+                    "type": "string",
+                    "default": "U13, U15",
+                    "description": "Comma-separated age groups"
+                  },
+                  "matchDurationMinutes": {
+                    "type": "integer",
+                    "default": 60,
+                    "description": "Duration of each match in minutes"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Event created successfully"
+          }
+        }
+      }
+    },
+    "/api/agent-tools/events/{eventId}": {
+      "get": {
+        "operationId": "getEventInfo",
+        "summary": "Get event information",
+        "description": "Get information about a football event including capacity, dates, venue",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The ID of the football event"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Event information"
+          }
+        }
+      }
+    },
+    "/api/agent-tools/events/{eventId}/registration-status": {
+      "get": {
+        "operationId": "checkRegistrationStatus",
+        "summary": "Check registration status",
+        "description": "Check current registration status and availability for an event",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The ID of the football event"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Registration status information"
+          }
+        }
+      }
+    },
+    "/api/agent-tools/register-team": {
+      "post": {
+        "operationId": "registerTeam",
+        "summary": "Register a team for a football festival",
+        "description": "Register a team for a football festival with team details and coach information",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["eventId", "teamName", "schoolName", "coachName", "coachPhone", "ageGroup"],
+                "properties": {
+                  "eventId": {
+                    "type": "integer",
+                    "description": "The ID of the football event"
+                  },
+                  "teamName": {
+                    "type": "string",
+                    "description": "Name of the football team"
+                  },
+                  "schoolName": {
+                    "type": "string",
+                    "description": "Name of the school the team represents"
+                  },
+                  "coachName": {
+                    "type": "string",
+                    "description": "Full name of the team coach"
+                  },
+                  "coachPhone": {
+                    "type": "string",
+                    "description": "Phone number of the coach"
+                  },
+                  "ageGroup": {
+                    "type": "string",
+                    "description": "Age group category (e.g., U13, U15)"
+                  },
+                  "division": {
+                    "type": "string",
+                    "description": "Optional division assignment (A or B)",
+                    "default": ""
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Team registered successfully"
+          }
+        }
+      }
+    },
+    "/api/agent-tools/events/{eventId}/generate-fixtures": {
+      "post": {
+        "operationId": "generateFixtures",
+        "summary": "Generate fixtures for an event",
+        "description": "Generate fixture schedule for an event after teams are registered",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The ID of the football event"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pitchId": {
+                    "type": "integer",
+                    "default": 1,
+                    "description": "The ID of the pitch to schedule matches on"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Fixtures generated successfully"
+          }
+        }
+      }
+    },
+    "/api/agent-tools/teams/{teamId}/fixtures": {
+      "get": {
+        "operationId": "getTeamFixtures",
+        "summary": "Get team fixtures",
+        "description": "Get fixture information for a specific team",
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The ID of the team"
+          },
+          {
+            "name": "eventId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The ID of the football event"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Team fixtures information"
+          }
+        }
+      }
+    },
+    "/api/agent-tools/events/{eventId}/can-register": {
+      "get": {
+        "operationId": "checkCanRegister",
+        "summary": "Check if team can register",
+        "description": "Check if a team can still register for an event (capacity check)",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The ID of the football event"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Registration availability status"
+          }
+        }
+      }
+    }
+  }
+}

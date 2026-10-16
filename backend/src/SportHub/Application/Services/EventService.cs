@@ -65,6 +65,7 @@ public class EventService(IEventRepository events, IMapper mapper)
         if (request.Description is not null) ev.Description = request.Description;
         if (request.AgeGroups is not null) ev.AgeGroups = request.AgeGroups;
         if (request.EventType is not null) ev.EventType = request.EventType;
+        if (request.SportCategory is not null) ev.SportCategory = request.SportCategory;
         if (request.MatchDurationMinutes is not null) ev.MatchDurationMinutes = request.MatchDurationMinutes.Value;
         if (request.BreakBetweenMatchesMinutes is not null) ev.BreakBetweenMatchesMinutes = request.BreakBetweenMatchesMinutes.Value;
         

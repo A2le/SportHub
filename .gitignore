@@ -7,6 +7,10 @@
 *.suo
 .vs/
 
+# macOS
+.DS_Store
+**/.DS_Store
+
 # Environment
 appsettings.Development.json
 

@@ -25,15 +25,29 @@ public class FixtureService(IFixtureRepository fixtures, IRegistrationRepository
         var regs = await registrations.GetByEventIdAsync(request.EventId);
         var teamList = await teams.GetAllAsync();
 
-        // Auto-assign divisions if not specified - create balanced divisions
+        // 1. CHECK CAPACITY: Wait for max capacity before generating fixtures
+        var confirmedRegistrations = regs.Where(r => r.Status == "Confirmed").ToList();
+        if (confirmedRegistrations.Count < ev.NumberOfTeams)
+        {
+            throw new InvalidOperationException($"Cannot generate fixtures yet. Waiting for full capacity: {confirmedRegistrations.Count}/{ev.NumberOfTeams} teams registered. Please wait for more teams to register.");
+        }
+
+
+
+        // 2. CHECK FOR EXISTING FIXTURES: Prevent duplicate generation
+        var existingFixtures = await fixtures.GetByEventIdAsync(request.EventId);
+        if (existingFixtures.Any())
+        {
+            throw new InvalidOperationException($"Fixtures already exist for this event. Found {existingFixtures.Count} existing fixtures. Delete them first if you want to regenerate.");
+        }
+
+        // 3. Auto-assign divisions if not specified
         await AutoAssignDivisions(regs, request.EventId);
-        
-        // Reload registrations after auto-assignment
         regs = await registrations.GetByEventIdAsync(request.EventId);
 
-        // Group teams by age group and division for fair matchmaking
+        // 4. Group teams by age group and division
         var teamsByAgeAndDivision = new Dictionary<string, List<int>>();
-        foreach (var reg in regs.Where(r => r.Status == "Confirmed"))
+        foreach (var reg in confirmedRegistrations)
         {
             var key = $"{reg.AgeGroup}-{reg.Division}";
             if (!teamsByAgeAndDivision.ContainsKey(key))
@@ -41,41 +55,193 @@ public class FixtureService(IFixtureRepository fixtures, IRegistrationRepository
             teamsByAgeAndDivision[key].Add(reg.TeamId);
         }
 
-        var generated = new List<Fixture>();
-        var startMinutes = TimeSpan.Parse(ev.PitchStartTime, CultureInfo.InvariantCulture).TotalMinutes;
-        var endMinutes = TimeSpan.Parse(ev.PitchEndTime, CultureInfo.InvariantCulture).TotalMinutes;
-        var matchDuration = ev.MatchDurationMinutes;
-        var breakDuration = ev.BreakBetweenMatchesMinutes;
-        
-        // Calculate total available time and split between age groups and divisions
-        var totalTime = endMinutes - startMinutes;
-        var timePerGroup = totalTime / teamsByAgeAndDivision.Count;
 
-        var currentSlotStart = startMinutes;
 
-        // Generate fixtures for each age group and division separately
-        foreach (var (groupKey, teamIds) in teamsByAgeAndDivision)
-        {
-            Console.WriteLine($"Generating fixtures for {groupKey}: {string.Join(", ", teamIds)}");
-            
-            // Each group gets its own time allocation
-            var groupEndTime = currentSlotStart + timePerGroup;
-            var slotMinutes = currentSlotStart;
-            
-            var fixtures = GenerateFairFixtures(teamIds, request.EventId, request.PitchId, ref slotMinutes, groupEndTime, matchDuration, breakDuration, groupKey);
-            generated.AddRange(fixtures);
-            
-            // Next group starts after this one
-            currentSlotStart = groupEndTime;
-        }
+        // 5. Generate smart fixtures with all constraints
+        var generated = await GenerateSmartFixtures(teamsByAgeAndDivision, ev, request.PitchId);
 
-        // Save all fixtures
+        // 6. Save all fixtures
         foreach (var fixture in generated)
         {
             await fixtures.SaveAsync(fixture);
         }
 
+
         return generated.Select(f => ToResponse(f, teamList, regs)).ToList();
+    }
+
+    private async Task<List<Fixture>> GenerateSmartFixtures(Dictionary<string, List<int>> teamsByAgeAndDivision, Event ev, int pitchId)
+    {
+        var fixtures = new List<Fixture>();
+        var startMinutes = TimeSpan.Parse(ev.PitchStartTime, CultureInfo.InvariantCulture).TotalMinutes;
+        var endMinutes = TimeSpan.Parse(ev.PitchEndTime, CultureInfo.InvariantCulture).TotalMinutes;
+        var matchDuration = ev.MatchDurationMinutes;
+        var breakBetweenMatches = ev.BreakBetweenMatchesMinutes;
+        var maxMatchesPerTeam = ev.MaxMatchesPerTeam;
+        var minRestTime = ev.MinRestTimeBetweenMatches;
+
+        // Track team schedule to prevent back-to-back matches and manage pitch usage
+        var teamSchedule = new Dictionary<int, List<double>>(); // teamId -> list of match start times
+        var pitchSchedule = new List<(double start, double end)>(); // track pitch usage times
+        
+
+
+        var currentSlotStart = startMinutes;
+
+        // Generate fixtures for each division
+        foreach (var (groupKey, teamIds) in teamsByAgeAndDivision)
+        {
+            if (teamIds.Count < 2)
+            {
+                continue;
+            }
+
+            // Initialize team schedules
+            foreach (var teamId in teamIds)
+            {
+                if (!teamSchedule.ContainsKey(teamId))
+                    teamSchedule[teamId] = new List<double>();
+            }
+
+            // Generate all possible matchups
+            var allMatchups = new List<(int home, int away)>();
+            for (int i = 0; i < teamIds.Count; i++)
+            {
+                for (int j = i + 1; j < teamIds.Count; j++)
+                {
+                    allMatchups.Add((teamIds[i], teamIds[j]));
+                }
+            }
+
+
+
+            // Shuffle for fairness
+            var random = new Random();
+            allMatchups = allMatchups.OrderBy(x => random.Next()).ToList();
+
+            // Schedule matches with smart constraints
+            foreach (var (home, away) in allMatchups)
+            {
+                // Check if teams have reached max matches
+                if (teamSchedule[home].Count >= maxMatchesPerTeam || teamSchedule[away].Count >= maxMatchesPerTeam)
+                {
+                    continue;
+                }
+
+                // Find next available slot that satisfies all constraints
+                var matchSlot = FindNextAvailableSlot(
+                    currentSlotStart, 
+                    endMinutes,
+                    matchDuration,
+                    breakBetweenMatches,
+                    minRestTime,
+                    teamSchedule,
+                    pitchSchedule,
+                    home,
+                    away,
+                    pitchId
+                );
+
+                if (matchSlot == -1)
+                {
+                    continue;
+                }
+
+                // Schedule the match
+                var kickOff = TimeSpan.FromMinutes(matchSlot).ToString(@"hh\:mm");
+                var matchEnd = matchSlot + matchDuration;
+
+                var fixture = new Fixture
+                {
+                    EventId = ev.Id,
+                    HomeTeamId = home,
+                    AwayTeamId = away,
+                    PitchId = pitchId,
+                    KickOffTime = kickOff
+                };
+
+                fixtures.Add(fixture);
+
+                // Update schedules
+                teamSchedule[home].Add(matchSlot);
+                teamSchedule[away].Add(matchSlot);
+                pitchSchedule.Add((matchSlot, matchEnd + breakBetweenMatches)); // Include cleanup time
+                
+                // Don't update currentSlotStart here - let the algorithm find available slots
+                // This allows fixtures from different age groups to be interleaved
+            }
+        }
+
+        return fixtures;
+    }
+
+    private double FindNextAvailableSlot(
+        double startTime,
+        double endTime,
+        int matchDuration,
+        int breakBetweenMatches,
+        int minRestTime,
+        Dictionary<int, List<double>> teamSchedule,
+        List<(double start, double end)> pitchSchedule,
+        int homeTeamId,
+        int awayTeamId,
+        int pitchId)
+    {
+        var slotDuration = matchDuration + breakBetweenMatches;
+        
+        for (double slot = startTime; slot + matchDuration <= endTime; slot += 15) // 15-minute increments
+        {
+            var slotEnd = slot + matchDuration;
+            var slotWithBreak = slot + slotDuration;
+
+            // 1. CHECK PITCH AVAILABILITY: Ensure pitch is not double-booked
+            var pitchConflict = pitchSchedule.Any(p => 
+                (slot >= p.start && slot < p.end) || 
+                (slotEnd > p.start && slotEnd <= p.end) ||
+                (slot <= p.start && slotEnd >= p.end));
+
+            if (pitchConflict)
+                continue;
+
+            // 2. CHECK TEAM REST TIME: Ensure teams have adequate rest
+            var homeTeamCanPlay = CanTeamPlay(homeTeamId, slot, slotEnd, minRestTime, teamSchedule, matchDuration);
+            var awayTeamCanPlay = CanTeamPlay(awayTeamId, slot, slotEnd, minRestTime, teamSchedule, matchDuration);
+
+            if (!homeTeamCanPlay || !awayTeamCanPlay)
+                continue;
+
+            // Found a valid slot!
+            return slot;
+        }
+
+        return -1; // No available slot found
+    }
+
+    private bool CanTeamPlay(int teamId, double newMatchStart, double newMatchEnd, int minRestTime, Dictionary<int, List<double>> teamSchedule, int matchDuration)
+    {
+        if (!teamSchedule.ContainsKey(teamId) || !teamSchedule[teamId].Any())
+            return true; // Team has no previous matches
+
+        var teamMatches = teamSchedule[teamId];
+
+        // Check rest time before this match
+        // Rest time should be measured from the END of the last match to the START of this match
+        var lastMatchStart = teamMatches.Max();
+        var lastMatchEnd = lastMatchStart + matchDuration;
+        
+        if (newMatchStart < lastMatchEnd + minRestTime)
+        {
+            return false;
+        }
+
+        // Check rest time after this match (if there are future matches)
+        var earliestNextMatchStart = teamMatches.Where(m => m > newMatchEnd).DefaultIfEmpty(double.MaxValue).Min();
+        if (earliestNextMatchStart < newMatchEnd + minRestTime)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private async Task AutoAssignDivisions(List<Registration> registrationList, int eventId)
@@ -106,8 +272,6 @@ public class FixtureService(IFixtureRepository fixtures, IRegistrationRepository
                     reg.Division = i < halfCount ? "A" : "B";
                     await registrations.SaveAsync(reg);
                 }
-                
-                Console.WriteLine($"Auto-assigned divisions for {ageGroupRegs.Key}: Division A ({halfCount} teams), Division B ({shuffledRegs.Count - halfCount} teams)");
             }
             else
             {
@@ -117,70 +281,11 @@ public class FixtureService(IFixtureRepository fixtures, IRegistrationRepository
                     reg.Division = "A";
                     await registrations.SaveAsync(reg);
                 }
-                
-                Console.WriteLine($"Auto-assigned all {regsInAge.Count} teams in {ageGroupRegs.Key} to Division A (not enough for two divisions)");
             }
         }
     }
 
-    private List<Fixture> GenerateFairFixtures(List<int> teamIds, int eventId, int pitchId, ref double slotMinutes, double endMinutes, int matchDuration, int breakDuration, string groupKey)
-    {
-        var fixtures = new List<Fixture>();
-        
-        if (teamIds.Count < 2) 
-        {
-            Console.WriteLine($"Not enough teams for {groupKey}: {teamIds.Count}");
-            return fixtures;
-        }
 
-        Console.WriteLine($"Creating fixtures for {groupKey} with {teamIds.Count} teams");
-
-        // Create a fair round-robin schedule
-        // Each team plays every other team exactly once
-        var matchups = new List<(int home, int away)>();
-        
-        for (int i = 0; i < teamIds.Count; i++)
-        {
-            for (int j = i + 1; j < teamIds.Count; j++)
-            {
-                matchups.Add((teamIds[i], teamIds[j]));
-            }
-        }
-
-        // Randomize the order of matches for variety
-        var random = new Random();
-        matchups = matchups.OrderBy(x => random.Next()).ToList();
-
-        Console.WriteLine($"Generated {matchups.Count} matchups for {groupKey}");
-
-        // Schedule matches within available time
-        foreach (var (home, away) in matchups)
-        {
-            // Check if we have time for this match
-            if (slotMinutes + matchDuration > endMinutes) 
-            {
-                Console.WriteLine($"No more time available at {slotMinutes} minutes");
-                break;
-            }
-
-            var kickOff = TimeSpan.FromMinutes(slotMinutes).ToString(@"hh\:mm");
-
-            var fixture = new Fixture
-            {
-                EventId = eventId,
-                HomeTeamId = home,
-                AwayTeamId = away,
-                PitchId = pitchId,
-                KickOffTime = kickOff
-            };
-
-            fixtures.Add(fixture);
-            Console.WriteLine($"Added fixture: Team {home} vs Team {away} at {kickOff}");
-            slotMinutes += matchDuration + breakDuration;
-        }
-
-        return fixtures;
-    }
 
     public async Task<FixtureResponse?> CreateAsync(CreateFixtureRequest request)
     {

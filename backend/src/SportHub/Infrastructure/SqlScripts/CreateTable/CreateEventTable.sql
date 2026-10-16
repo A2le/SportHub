@@ -17,3 +17,14 @@ CREATE TABLE events (
     CreatedAt                  VARCHAR(30)  NOT NULL,
     CONSTRAINT pk_events PRIMARY KEY (Id)
 );
+
+ALTER TABLE `Events` 
+ADD COLUMN `MaxMatchesPerTeam` INT NOT NULL DEFAULT 3 COMMENT 'Maximum number of matches each team can play',
+ADD COLUMN `MinRestTimeBetweenMatches` INT NOT NULL DEFAULT 60 COMMENT 'Minimum rest time in minutes between team matches';
+
+
+ALTER TABLE `Events` 
+ADD COLUMN `SportCategory` VARCHAR(100) NOT NULL DEFAULT 'Football' COMMENT 'Sport type: Football, Rugby, Cricket, etc.';
+
+-- Verify the column was added
+DESCRIBE `Events`;

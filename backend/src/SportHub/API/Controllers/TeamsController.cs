@@ -18,7 +18,6 @@ public class TeamsController(TeamService teamService) : ControllerBase
         return team is null ? NotFound() : Ok(team);
     }
 
-    // For hackathon: Use either /api/agent-tools/register-team OR create team + register separately
     [HttpPost]
     public async Task<IActionResult> Create(CreateTeamRequest request)
     {
