@@ -2,6 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using SportHub.Application.Interfaces;
 using SportHub.Application.Services;
 using SportHub.Infrastructure.Data;
+using Amazon.SimpleEmail;
+using Amazon.SimpleNotificationService;
+using Amazon.Extensions.NETCore.Setup;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +28,24 @@ builder.Services.AddScoped<EventService>();
 builder.Services.AddScoped<TeamService>();
 builder.Services.AddScoped<RegistrationService>();
 builder.Services.AddScoped<FixtureService>();
+
+builder.Services.AddScoped<WhatsAppService>();
+builder.Services.AddScoped<EmailNotificationService>();
+
+// AWS SDK Services
+builder.Services.AddAWSService<IAmazonSimpleEmailService>();
+builder.Services.AddAWSService<IAmazonSimpleNotificationService>();
+
+// CORS for frontend demo
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
 
 builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy =>
@@ -54,6 +75,11 @@ var app = builder.Build();
 
 app.UseSwagger();
 app.UseSwaggerUI();
+
+// Enable CORS
+app.UseCors("AllowAll");
+
+
 app.UseCors();
 app.MapControllers();
 app.Run();

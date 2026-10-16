@@ -5,6 +5,7 @@ public record CreateTeamRequest(
     string SchoolName,
     string CoachName,
     string CoachPhone,
+    string CoachEmail,
     string AgeGroup);
 
 public record TeamResponse(
@@ -13,5 +14,6 @@ public record TeamResponse(
     string SchoolName,
     string CoachName,
     string CoachPhone,
+    string CoachEmail,
     string AgeGroup,
     DateTime CreatedAt);

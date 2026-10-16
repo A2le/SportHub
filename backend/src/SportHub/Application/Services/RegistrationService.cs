@@ -4,7 +4,13 @@ using SportHub.Domain.Entities;
 
 namespace SportHub.Application.Services;
 
-public class RegistrationService(IRegistrationRepository registrations, ITeamRepository teams, INotificationRepository notifications, IEventRepository events)
+public class RegistrationService(
+    IRegistrationRepository registrations, 
+    ITeamRepository teams, 
+    INotificationRepository notifications, 
+    IEventRepository events,
+    EmailNotificationService emailService,
+    WhatsAppService whatsAppService)
 {
     public async Task<RegistrationResponse?> GetAsync(int id)
     {
@@ -56,6 +62,40 @@ public class RegistrationService(IRegistrationRepository registrations, ITeamRep
         });
 
         var teamEntity = await teams.GetByIdAsync(request.TeamId);
+        
+        // Send multi-channel notifications
+        if (teamEntity != null && eventEntity != null)
+        {
+            try
+            {
+                // Send email notification (if coach email is available)
+                if (!string.IsNullOrEmpty(teamEntity.CoachEmail))
+                {
+                    await emailService.SendRegistrationConfirmationAsync(
+                        teamEntity.CoachEmail,
+                        teamEntity.Name,
+                        eventEntity.Name,
+                        teamEntity.CoachName
+                    );
+                }
+
+                // Send WhatsApp notification (if coach phone is available)
+                if (!string.IsNullOrEmpty(teamEntity.CoachPhone))
+                {
+                    await whatsAppService.SendRegistrationConfirmationAsync(
+                        teamEntity.CoachPhone,
+                        teamEntity.Name,
+                        eventEntity.Name,
+                        teamEntity.CoachName
+                    );
+                }
+            }
+            catch
+            {
+                // Log notification failures but don't fail the registration
+            }
+        }
+
         return ToResponse(reg, teamEntity);
     }
 
