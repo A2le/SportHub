@@ -1,185 +1,262 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  Box,
-  Container,
-  Typography,
-  Paper,
-  CircularProgress,
   Alert,
+  Box,
+  CircularProgress,
+  Container,
+  Paper,
+  Typography,
 } from "@mui/material";
+import axios from "axios";
 
-import type { Event } from "../types/event";
-import type { ChatMessage as Message } from "../types/chat";
-
-import { getEvent } from "../services/eventApi";
-import { sendAgentMessage } from "../services/agentApi";
+import type { AgentEventInfo } from "../types/agentEvent";
+import type {
+  ChatMessage as Message,
+  QuickReply,
+  Registration,
+  RegistrationStatus,
+} from "../types/chat";
+import RegistrationStatusCard from "../components/RegistrationStatusCard";
+import { getAgentEventInfo } from "../services/agentEventApi";
+import { registerTeam } from "../services/registrationApi";
+import { sendAgentMessage } from "../services/eventApi";
 
 import EventDetailsCard from "../components/EventDetailsCard";
 import ChatMessage from "../components/ChatMessage";
 import ChatInput from "../components/ChatInput";
-import type { RegistrationStatus } from "../types/chat";
 import RegistrationActions from "../components/RegistrationActions";
-import type { Registration, RegistrationResult } from "../types/chat";
 
-import { createRegistration } from "../services/registrationApi";
-import { isAxiosError } from "axios";
-import WhatsAppRegistrationButton from "../components/WhatsAppRegistrationButton";
+import {
+  checkCanRegister,
+  // getRegistrationStatus,
+} from "../services/registrationApi";
+
+import { readCanRegister } from "../utils/registration";
+import TeamFixtureLookup from "../components/TeamFixtureLookup";
+import { resetMockConversation } from "../services/mockAgent";
+import { Avatar, Stack, Chip, Skeleton } from "@mui/material";
+
+import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
+
+
+const EVENT_ID = Number(import.meta.env.VITE_EVENT_ID ?? 1);
+
+function makeMessage(
+  role: "user" | "assistant",
+  content: string,
+  registration?: Registration,
+  quickReplies?: QuickReply[],
+): Message {
+  return {
+    id: crypto.randomUUID(),
+    role,
+    content,
+    timestamp: new Date().toISOString(),
+    registration,
+    quickReplies,
+  };
+}
+
 export default function CoachChatPage() {
-  const [event, setEvent] = useState<Event | null>(null);
+  const [event, setEvent] = useState<AgentEventInfo | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [eventLoading, setEventLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [registrationStatus, setRegistrationStatus] =
-    useState<RegistrationStatus>("idle");
-  const [draftRegistration, setDraftRegistration] =
-    useState<Registration | null>(null);
 
-  const [/* savedRegistration */, setSavedRegistration] =
-    useState<RegistrationResult | null>(null);
+  const [status, setStatus] = useState<RegistrationStatus>("idle");
 
-  const [savingRegistration, setSavingRegistration] = useState(false);
-  const [conversationId, setConversationId] = useState(() =>
-    crypto.randomUUID(),
-  );
+  const [draft, setDraft] = useState<Registration | null>(null);
 
-  // Load event information
+  const [conversationId] = useState(() => crypto.randomUUID());
+const [registrationRefreshKey, setRegistrationRefreshKey] =
+  useState(0);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const busy = loading || saving;
+
+  const ageGroups =
+    event?.ageGroups
+      ?.split(",")
+      .map((age) => age.trim().toUpperCase().replace(/\s/g, ""))
+      .filter(Boolean) ?? [];
+
   useEffect(() => {
-    getEvent(1)
-      .then((data) => {
-        setEvent(data);
+    let active = true;
 
+    getAgentEventInfo(EVENT_ID)
+      .then((data) => {
+        if (!active) return;
+
+        setEvent(data);
         setMessages([
-          {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            content: `Welcome to ${data.name}! How can I help you?`,
-            timestamp: new Date().toISOString(),
-          },
+          makeMessage(
+            "assistant",
+            `Welcome to ${data.name}! How can I assist you today?`,
+            undefined,
+            [{ label: "Register Team", value: "register" }],
+          ),
         ]);
       })
-      .catch(() => {
-        setError("Failed to load event information.");
+      .catch((error: unknown) => {
+        if (!active) return;
+
+        console.error("Failed to load event:", error);
+
+        if (axios.isAxiosError(error)) {
+          const status = error.response?.status;
+
+          if (!error.response) {
+            setError(
+              "Cannot connect to the backend. Check your API URL, server and CORS settings.",
+            );
+          } else if (status === 404) {
+            setError(
+              `Event ${EVENT_ID} was not found, or the API route is incorrect.`,
+            );
+          } else if (status === 401 || status === 403) {
+            setError("You are not authorised to retrieve this event.");
+          } else {
+            setError(`Unable to load event. Server returned ${status}.`);
+          }
+        } else {
+          setError("An unexpected error occurred while loading the event.");
+        }
       })
       .finally(() => {
-        setEventLoading(false);
+        if (active) setEventLoading(false);
       });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  // Send a message to the AI agent
-  const handleSend = async (text: string) => {
-    if (!event || loading) return;
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+    });
+  }, [messages, status]);
 
+  const handleSend = async (text: string) => {
+    if (!event || busy) return;
+
+    setLoading(true);
     setError(null);
 
-    const userMessage: Message = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: text,
-      timestamp: new Date().toISOString(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setLoading(true);
+    setMessages((prev) => [...prev, makeMessage("user", text)]);
 
     try {
-      const response = await sendAgentMessage({
-        conversation_id: conversationId,
-        event_id: event.id,
-        message: text,
-      });
+      const response = await sendAgentMessage(
+        {
+          conversation_id: conversationId,
+          event_id: event.id,
+          message: text,
+        },
+        ageGroups,
+      );
 
-      setConversationId(response?.conversation_id as any);
-      setRegistrationStatus(response.status);
-      if (response.status === "review" && response.registration) {
-        setDraftRegistration(response.registration);
+      setStatus(response.status);
+
+      if (response.status === "review") {
+        setDraft(response.registration ?? null);
       }
 
       if (response.status === "cancelled") {
-        setDraftRegistration(null);
+        setDraft(null);
       }
 
-      const aiMessage: Message = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: response.reply,
-        timestamp: new Date().toISOString(),
-        registration: response.registration ?? undefined,
-      };
-
-      setMessages((prev) => [...prev, aiMessage]);
+      setMessages((prev) => [
+        ...prev,
+        makeMessage(
+          "assistant",
+          response.reply,
+          response.registration ?? undefined,
+          response.quickReplies,
+        ),
+      ]);
     } catch {
-      setError("Unable to contact the AI agent.");
+      setError("Unable to process your message.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleConfirmRegistration = async () => {
-    if (!event || !draftRegistration || savingRegistration) {
-      return;
-    }
+  const handleConfirm = async () => {
+    if (!event || !draft || busy) return;
 
-    setSavingRegistration(true);
+    setSaving(true);
     setError(null);
 
     try {
-      const result = await createRegistration({
+      // Real backend request
+      const availability = await checkCanRegister(event.id);
+
+      if (!readCanRegister(availability)) {
+        setError("Registration is currently unavailable for this event.");
+        return;
+      }
+
+      await registerTeam({
         eventId: event.id,
-        teamName: draftRegistration.teamName,
-        school: draftRegistration.school,
-        ageGroup: draftRegistration.ageGroup,
-        players: draftRegistration.players,
-        coach: draftRegistration.coach,
-        conversationId,
+        teamName: draft.teamName,
+        schoolName: draft.schoolName,
+        coachName: draft.coachName,
+        coachPhone: draft.coachPhone,
+        ageGroup: draft.ageGroup,
+        division: draft.division,
       });
 
-      setSavedRegistration(result);
-      setDraftRegistration(null);
-      setRegistrationStatus("completed");
+      setStatus("completed");
+      setDraft(null);
+setRegistrationRefreshKey((prev) => prev + 1);
+      const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
 
-      const successMessage: Message = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content:
-          result.status === "registered"
-            ? `Your team ${result.teamName} has been registered successfully! Registration ID: ${result.id}.`
-            : `Your registration has been received and is pending approval. Registration ID: ${result.id}.`,
-        timestamp: new Date().toISOString(),
-      };
+      setMessages((prev) => [
+        ...prev,
+        makeMessage(
+          "assistant",
+          isDemoMode
+            ? `Demo registration completed for ${draft.teamName}. No data was saved to the database.`
+            : `Registration request submitted for ${draft.teamName}. Please check its status with the organiser.`,
+        ),
+      ]);
+      resetMockConversation(conversationId);
+    } catch (err: unknown) {
+      let message = "Unable to register the team.";
 
-      setMessages((prev) => [...prev, successMessage]);
-    } catch (error) {
-      let message = "Registration failed. Please try again.";
-
-      if (isAxiosError(error)) {
-        const detail = error.response?.data?.detail;
+      if (axios.isAxiosError(err)) {
+        const detail = err.response?.data?.detail;
 
         if (typeof detail === "string") {
           message = detail;
-        } else if (!error.response) {
-          message = "Unable to connect to the registration server.";
+        } else if (!err.response) {
+          message =
+            "Could not contact the server. Please check the connection before retrying.";
         }
       }
 
       setError(message);
     } finally {
-      setSavingRegistration(false);
+      setSaving(false);
     }
   };
 
-  const handleCancelRegistration = async () => {
-    if (savingRegistration) return;
-
-    setDraftRegistration(null);
-    setRegistrationStatus("idle");
-
+  const handleCancel = async () => {
+    if (busy) return;
     await handleSend("cancel");
   };
 
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "#f5f7fb", py: 4 }}>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        bgcolor: "#f5f7fb",
+        py: 4,
+      }}
+    >
       <Container maxWidth="md">
         <Typography variant="h4" sx={{ fontWeight: 700, mb: 3 }}>
           Amusema Sports AI
@@ -191,7 +268,12 @@ export default function CoachChatPage() {
           <>
             <EventDetailsCard event={event} />
 
-            <WhatsAppRegistrationButton event={event} />
+            <Box sx={{ mb: 3 }}>
+              <RegistrationStatusCard
+    eventId={event.id}
+    refreshKey={registrationRefreshKey}
+  />
+            </Box>
           </>
         )}
 
@@ -210,37 +292,139 @@ export default function CoachChatPage() {
             overflow: "hidden",
           }}
         >
-          <Box sx={{ p: 2, borderBottom: "1px solid #eee" }}>
-            <Typography sx={{ fontWeight: 700 }}>AI Coach Assistant</Typography>
-          </Box>
+          <Box
+            sx={{
+              px: 3,
+              py: 2,
+              borderBottom: "1px solid #E3E8EF",
+              bgcolor: "#FFFFFF",
+            }}
+          >
+            <Stack direction="row" sx={{ alignItems: "center" }} spacing={2}>
+              <Avatar
+                sx={{
+                  bgcolor: "#E6F4ED",
+                  color: "#176B54",
+                  width: 44,
+                  height: 44,
+                }}
+              >
+                <SmartToyOutlinedIcon />
+              </Avatar>
 
-          <Box sx={{ flex: 1, overflowY: "auto", p: 2 }}>
-            {messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
-            ))}
+              <Box sx={{ flex: 1 }}>
+                <Typography sx={{ fontWeight: 700 }}>
+                  Amusema AI Assistant
+                </Typography>
 
-            {loading && (
-              <Typography color="text.secondary">AI is typing...</Typography>
-            )}
-            {registrationStatus === "review" && draftRegistration && (
-              <RegistrationActions
-                onConfirm={() => void handleConfirmRegistration()}
-                onCancel={() => void handleCancelRegistration()}
-                disabled={savingRegistration || loading}
-              />
-            )}
-            {savingRegistration && (
-              <Box sx={{ display: "flex", alignItems: "center", gap: 2, p: 2 }}>
-                <CircularProgress size={20} />
-                <Typography variant="body2">
-                  Saving team registration...
+                <Typography variant="caption" color="text.secondary">
+                  Sports event registration assistant
                 </Typography>
               </Box>
-            )}
+
+              <Chip
+                size="small"
+                label="Demo AI"
+                variant="outlined"
+                sx={{
+                  borderColor: "#176B54",
+                  color: "#176B54",
+                  fontWeight: 600,
+                }}
+              />
+            </Stack>
           </Box>
 
-          <ChatInput onSend={handleSend} disabled={loading || !event} />
+          <Box
+            sx={{
+              flex: 1,
+              overflowY: "auto",
+              px: { xs: 2, md: 3 },
+              py: 3,
+              bgcolor: "#FAFBFC",
+            }}
+          >
+            {messages.map((message, index) => {
+              const isLatestMessage = index === messages.length - 1;
+
+              return (
+                <ChatMessage
+                  key={message.id}
+                  message={message}
+                  onQuickReply={
+                    isLatestMessage && !busy && status !== "review"
+                      ? (value) => void handleSend(value)
+                      : undefined
+                  }
+                  quickRepliesDisabled={!isLatestMessage || busy}
+                />
+              );
+            })}
+
+            {loading && (
+              <Stack
+                direction="row"
+                spacing={1.5}
+                sx={{ alignItems: "flex-end", mb: 2 }}
+              >
+                <Avatar
+                  sx={{
+                    bgcolor: "#E6F4ED",
+                    color: "#176B54",
+                    width: 34,
+                    height: 34,
+                  }}
+                >
+                  <SmartToyOutlinedIcon fontSize="small" />
+                </Avatar>
+
+                <Box
+                  sx={{
+                    bgcolor: "#F3F5F8",
+                    borderRadius: 3,
+                    p: 2,
+                    width: 140,
+                  }}
+                >
+                  <Stack spacing={1}>
+                    <Skeleton variant="text" width="90%" />
+                    <Skeleton variant="text" width="60%" />
+                  </Stack>
+                </Box>
+              </Stack>
+            )}
+
+            {status === "review" && draft && (
+              <RegistrationActions
+                onConfirm={() => void handleConfirm()}
+                onCancel={() => void handleCancel()}
+                disabled={busy}
+              />
+            )}
+
+            {saving && (
+              <Box sx={{ display: "flex", gap: 2, p: 2 }}>
+                <CircularProgress size={20} />
+                <Typography>Submitting registration...</Typography>
+              </Box>
+            )}
+
+            <div ref={bottomRef} />
+          </Box>
+
+          <ChatInput
+            onSend={handleSend}
+            disabled={busy || !event || status === "review"}
+          />
         </Paper>
+
+        {event && (
+          <Box sx={{ mt: 3 }}>
+            <Paper sx={{ borderRadius: 3 }}>
+              <TeamFixtureLookup eventId={event.id} />
+            </Paper>
+          </Box>
+        )}
       </Container>
     </Box>
   );

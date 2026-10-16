@@ -1,17 +1,16 @@
 import {
   Card,
   CardContent,
-  Typography,
-  Stack,
   Chip,
-  Grid,
   Divider,
+  Stack,
+  Typography,
 } from "@mui/material";
 
-import type { Event } from "../types/event";
+import type { AgentEventInfo } from "../types/agentEvent";
 
 interface Props {
-  event: Event;
+  event: AgentEventInfo;
 }
 
 export default function EventDetailsCard({ event }: Props) {
@@ -24,62 +23,31 @@ export default function EventDetailsCard({ event }: Props) {
           </Typography>
 
           <Chip
-            label={event.eventType}
+            label={event.status}
             color="primary"
             sx={{ width: "fit-content" }}
           />
 
-          <Typography>
-            📍 {event.venue}
-          </Typography>
+          <Typography>Venue: {event.venue}</Typography>
 
           <Typography>
-            📅 {new Date(event.startDate).toLocaleDateString()}
-          </Typography>
-
-          <Typography color="text.secondary">
-            {event.description}
+            Dates: {event.startDate} - {event.endDate}
           </Typography>
 
           <Divider />
 
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 6, sm: 3 }}>
-              <Typography variant="caption">
-                Team Capacity
-              </Typography>
-              <Typography sx={{fontWeight:700}}>
-                {event.numberOfTeams}
-              </Typography>
-            </Grid>
+          <Typography>
+            Age groups: {event.ageGroups}
+          </Typography>
 
-            <Grid size={{ xs: 6, sm: 3 }}>
-              <Typography variant="caption">
-                Pitches
-              </Typography>
-              <Typography sx={{fontWeight:700}}>
-                {event.numberOfPitches}
-              </Typography>
-            </Grid>
+          <Typography>
+            Maximum teams: {event.maxTeams}
+          </Typography>
 
-            <Grid size={{ xs: 6, sm: 3 }}>
-              <Typography variant="caption">
-                Match Duration
-              </Typography>
-              <Typography sx={{fontWeight:700}}>
-                {event.matchDuration} min
-              </Typography>
-            </Grid>
-
-            <Grid size={{ xs: 6, sm: 3 }}>
-              <Typography variant="caption">
-                Break Duration
-              </Typography>
-              <Typography sx={{fontWeight:700}}>
-                {event.breakBetweenMatches} min
-              </Typography>
-            </Grid>
-          </Grid>
+          <Typography>
+            Pitch availability: {event.pitchStartTime} -{" "}
+            {event.pitchEndTime}
+          </Typography>
         </Stack>
       </CardContent>
     </Card>

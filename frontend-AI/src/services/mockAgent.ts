@@ -3,17 +3,18 @@ import type {
   AgentResponse,
   Registration,
   RegistrationStatus,
+  QuickReply,
 } from "../types/chat";
 
 type Step =
   | "idle"
   | "team"
   | "school"
-  | "age"
-  | "players"
   | "coach"
-  | "review"
-  | "completed";
+  | "phone"
+  | "age"
+  | "division"
+  | "review";
 
 interface ConversationState {
   step: Step;
@@ -22,218 +23,192 @@ interface ConversationState {
 
 const conversations = new Map<string, ConversationState>();
 
-function createConversation(): ConversationState {
-  return {
-    step: "idle",
-    registration: {},
-  };
-}
-
-function response(
-  conversationId: string,
-  reply: string,
+function reply(
+  id: string,
+  text: string,
   status: RegistrationStatus,
-  registration?: Registration
+  registration?: Registration,
+  quickReplies?: QuickReply[],
 ): AgentResponse {
   return {
-    conversation_id: conversationId,
-    reply,
+    conversation_id: id,
+    reply: text,
     status,
     registration: registration ?? null,
+    quickReplies,
   };
 }
 
 export async function mockAgentReply(
-  request: AgentRequest
+  request: AgentRequest,
+  allowedAgeGroups: string[] = [],
 ): Promise<AgentResponse> {
-  // Simulate a network delay
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  await new Promise((resolve) => setTimeout(resolve, 400));
 
-  const conversationId = request.conversation_id;
+  const id = request.conversation_id;
   const message = request.message.trim();
   const lower = message.toLowerCase();
 
-  let state = conversations.get(conversationId);
+  let state = conversations.get(id);
 
   if (!state) {
-    state = createConversation();
-    conversations.set(conversationId, state);
+    state = {
+      step: "idle",
+      registration: {},
+    };
+    conversations.set(id, state);
   }
 
-  // Allow cancellation at any point
-  if (lower === "cancel" && state.step !== "idle") {
-    conversations.delete(conversationId);
-
-    return response(
-      conversationId,
-      "Your registration has been cancelled. You can start again anytime.",
-      "cancelled"
-    );
+  if (lower === "cancel") {
+    conversations.delete(id);
+    return reply(id, "Registration cancelled.", "cancelled");
   }
 
-  // STEP 1: Start registration
-  if (state.step === "idle" || state.step === "completed") {
-    if (lower.includes("register")) {
+  switch (state.step) {
+    case "idle":
+      if (!lower.includes("register")) {
+        return reply(
+          id,
+          "Welcome! What would you like help with today?",
+          "idle",
+          undefined,
+          [{ label: "Register Team", value: "register" }],
+        );
+      }
+
+      state.registration = { eventId: request.event_id };
       state.step = "team";
-      state.registration = {};
 
-      return response(
-        conversationId,
-        "Let's register your team! What is your team name?",
-        "collecting"
+      return reply(
+        id,
+        "Let's register your team. What is the team name?",
+        "collecting",
+      );
+
+    case "team":
+      if (message.length < 2) {
+        return reply(id, "Enter a valid team name.", "collecting");
+      }
+
+      state.registration.teamName = message;
+      state.step = "school";
+
+      return reply(id, "Which school does your team represent?", "collecting");
+
+    case "school":
+      if (message.length < 2) {
+        return reply(id, "Enter a valid school name.", "collecting");
+      }
+
+      state.registration.schoolName = message;
+      state.step = "coach";
+
+      return reply(id, "What is the coach's full name?", "collecting");
+
+    case "coach":
+      if (message.length < 2) {
+        return reply(id, "Enter a valid coach name.", "collecting");
+      }
+
+      state.registration.coachName = message;
+      state.step = "phone";
+
+      return reply(
+        id,
+        "What is the coach's phone number? Include the country code.",
+        "collecting",
+      );
+
+    case "phone": {
+      const phone = message.replace(/[\s()-]/g, "");
+
+      if (!/^\+?[1-9]\d{7,14}$/.test(phone)) {
+        return reply(
+          id,
+          "Enter a valid international phone number, for example +27821234567.",
+          "collecting",
+        );
+      }
+
+      state.registration.coachPhone = phone;
+      state.step = "age";
+
+      return reply(
+        id,
+        `Which age group would you like to register for? ${
+          allowedAgeGroups.length ? allowedAgeGroups.join(", ") : ""
+        }`,
+        "collecting",
+        undefined,
+        allowedAgeGroups.map((age) => ({
+          label: age,
+          value: age,
+        })),
       );
     }
 
-    if (lower.includes("fixture")) {
-      return response(
-        conversationId,
-        "Fixture information is not connected yet. Please try again later.",
-        "idle"
+    case "age": {
+      const ageGroup = message.toUpperCase().replace(/\s/g, "");
+
+      if (allowedAgeGroups.length > 0 && !allowedAgeGroups.includes(ageGroup)) {
+        return reply(
+          id,
+          `Choose one of: ${allowedAgeGroups.join(", ")}`,
+          "collecting",
+        );
+      }
+
+      if (!ageGroup) {
+        return reply(id, "Enter an age group.", "collecting");
+      }
+
+      state.registration.ageGroup = ageGroup;
+      state.step = "division";
+
+      return reply(
+        id,
+        "Which division is your team registering for?",
+        "collecting",
+        undefined,
+        [
+          { label: "Boys", value: "Boys" },
+          { label: "Girls", value: "Girls" },
+        ],
       );
     }
 
-    return response(
-      conversationId,
-      "Welcome to Amusema Sports AI! I can help you register a team. Type 'register' to begin.",
-      "idle"
-    );
+    case "division": {
+      const division = message.toLowerCase();
+
+      if (!["boys", "girls"].includes(division)) {
+        return reply(
+          id,
+          "Please select a valid division: Boys or Girls.",
+          "collecting",
+        );
+      }
+
+      state.registration.division = division === "boys" ? "Boys" : "Girls";
+
+      state.step = "review";
+
+      return reply(
+        id,
+        "Please review your team registration details before confirming.",
+        "review",
+        state.registration as Registration,
+      );
+    }
+    case "review":
+      return reply(
+        id,
+        "Use the Confirm Registration or Cancel button.",
+        "review",
+        state.registration as Registration,
+      );
   }
+}
 
-  // STEP 2: Collect team name
-  if (state.step === "team") {
-    if (message.length < 2) {
-      return response(
-        conversationId,
-        "Please enter a valid team name.",
-        "collecting"
-      );
-    }
-
-    state.registration.teamName = message;
-    state.step = "school";
-
-    return response(
-      conversationId,
-      `Great! Which school or organisation does ${message} represent?`,
-      "collecting"
-    );
-  }
-
-  // STEP 3: Collect school
-  if (state.step === "school") {
-    if (message.length < 2) {
-      return response(
-        conversationId,
-        "Please enter a valid school or organisation name.",
-        "collecting"
-      );
-    }
-
-    state.registration.school = message;
-    state.step = "age";
-
-    return response(
-      conversationId,
-      "Which age group is your team registering for? U13 or U15?",
-      "collecting"
-    );
-  }
-
-  // STEP 4: Collect age group
-  if (state.step === "age") {
-    const age = message.toUpperCase().replace(/\s/g, "");
-
-    if (!["U13", "U15"].includes(age)) {
-      return response(
-        conversationId,
-        "Please select a valid age group: U13 or U15.",
-        "collecting"
-      );
-    }
-
-    state.registration.ageGroup = age;
-    state.step = "players";
-
-    return response(
-      conversationId,
-      "How many players are in your team?",
-      "collecting"
-    );
-  }
-
-  // STEP 5: Collect player count
-  if (state.step === "players") {
-    const players = Number(message);
-
-    if (
-      !Number.isInteger(players) ||
-      players < 1 ||
-      players > 50
-    ) {
-      return response(
-        conversationId,
-        "Please enter a whole number between 1 and 50.",
-        "collecting"
-      );
-    }
-
-    state.registration.players = players;
-    state.step = "coach";
-
-    return response(
-      conversationId,
-      "What is the full name of the team's coach?",
-      "collecting"
-    );
-  }
-
-  // STEP 6: Collect coach name
-  if (state.step === "coach") {
-    if (message.length < 2) {
-      return response(
-        conversationId,
-        "Please enter the coach's full name.",
-        "collecting"
-      );
-    }
-
-    state.registration.coach = message;
-    state.step = "review";
-
-    const registration = state.registration as Registration;
-
-    return response(
-      conversationId,
-      "Please review your team registration details. Would you like to confirm?",
-      "review",
-      registration
-    );
-  }
-
-  // STEP 7: Confirm registration
-  if (state.step === "review") {
-    if (["confirm", "yes"].includes(lower)) {
-      state.step = "completed";
-
-      return response(
-        conversationId,
-        "Your demo registration has been completed successfully!",
-        "completed",
-        state.registration as Registration
-      );
-    }
-
-    return response(
-      conversationId,
-      "Please type 'confirm' to continue or 'cancel' to stop.",
-      "review",
-      state.registration as Registration
-    );
-  }
-
-  return response(
-    conversationId,
-    "Type 'register' to start a new registration.",
-    "idle"
-  );
+export function resetMockConversation(conversationId: string): void {
+  conversations.delete(conversationId);
 }
