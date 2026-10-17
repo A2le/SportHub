@@ -12,6 +12,7 @@ export interface Registration {
   schoolName: string;
   coachName: string;
   coachPhone: string;
+  coachEmail: string;
   ageGroup: string;
   division: string;
 }

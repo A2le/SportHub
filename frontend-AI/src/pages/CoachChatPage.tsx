@@ -353,6 +353,7 @@ export default function CoachChatPage() {
         schoolName: draft.schoolName,
         coachName: draft.coachName,
         coachPhone: draft.coachPhone,
+        coachEmail: draft.coachEmail,
         ageGroup: draft.ageGroup,
         division: draft.division,
       });
