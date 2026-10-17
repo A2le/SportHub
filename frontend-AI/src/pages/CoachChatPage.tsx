@@ -48,6 +48,7 @@ import { getTeamFixtures } from "../services/fixtureApi";
 //import type { Fixture } from "../types/fixture";
 //import type { QuickReply } from "../types/chat";
 import type { TeamFixture } from "../types/fixture";
+import WhatsAppRegistrationButton from "../components/WhatsAppRegistrationButton";
 
 const EVENT_ID = Number(import.meta.env.VITE_EVENT_ID ?? 1);
 const MAIN_MENU: QuickReply[] = [
@@ -447,58 +448,87 @@ export default function CoachChatPage() {
             },
           }}
         >
-          {/* Chat header */}
-          <Box
-            sx={{
-              px: 3,
-              py: 2,
-              bgcolor: C.white,
-              borderBottom: `1px solid ${C.border}`,
-            }}
-          >
-            <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
-              <Avatar
-                sx={{
-                  width: 44,
-                  height: 44,
-                  bgcolor: C.greenLight,
-                  color: C.green,
-                  borderRadius: 2,
-                }}
-              >
-                <SmartToyOutlinedIcon />
-              </Avatar>
+          
+{/* Chat header */}
+<Box
+  sx={{
+    px: { xs: 2, sm: 3 },
+    py: 2,
+    bgcolor: C.white,
+    borderBottom: `1px solid ${C.border}`,
+  }}
+>
+  <Stack spacing={2}>
+    {/* Assistant information */}
+    <Stack
+      direction="row"
+      spacing={1.5}
+      sx={{alignItems:"center"}}
+    >
+      <Avatar
+        sx={{
+          width: 44,
+          height: 44,
+          bgcolor: C.greenLight,
+          color: C.green,
+          borderRadius: 2,
+          flexShrink: 0,
+        }}
+      >
+        <SmartToyOutlinedIcon />
+      </Avatar>
 
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography sx={{ fontWeight: 800 }}>
-                  Amusema AI Assistant
-                </Typography>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography
+          sx={{
+            fontWeight: 800,
+            color: C.navy,
+          }}
+        >
+          Amusema AI Assistant
+        </Typography>
 
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  noWrap
-                  sx={{
-                    display: "block",
-                  }}
-                >
-                  {event
-                    ? `${event.name} • ${event.venue}`
-                    : "Football event registration assistant"}
-                </Typography>
-              </Box>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          noWrap
+          sx={{ display: "block" }}
+        >
+          {event
+            ? `${event.name} • ${event.venue}`
+            : "Football event registration assistant"}
+        </Typography>
+      </Box>
 
-              <Chip
-                label="Web Chat"
-                size="small"
-                sx={{
-                  bgcolor: C.greenLight,
-                  color: C.green,
-                  fontWeight: 700,
-                }}
-              />
-            </Stack>
-          </Box>
+      <Chip
+        label="Web Chat"
+        size="small"
+        sx={{
+          bgcolor: C.greenLight,
+          color: C.green,
+          fontWeight: 700,
+          display: { xs: "none", sm: "flex" },
+        }}
+      />
+    </Stack>
+
+    {/* WhatsApp channel */}
+    {event && (
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: { xs: "stretch", sm: "flex-end" },
+          "& .MuiButton-root": {
+            width: { xs: "100%", sm: "auto" },
+          },
+        }}
+      >
+        <WhatsAppRegistrationButton event={event} />
+      </Box>
+    )}
+  </Stack>
+</Box>
+
 
           {/* Scrollable conversation */}
           <Box
