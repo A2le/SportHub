@@ -5,4 +5,5 @@ export interface RegistrationStatusResponse {
   registeredTeams: number;
   availableSpots: number;
   registrationOpen: boolean;
+  status: string;
 }
