@@ -23,6 +23,7 @@ export default function RegistrationSummary({
     { label: "School", value: registration.schoolName },
     { label: "Coach", value: registration.coachName },
     { label: "Phone", value: registration.coachPhone },
+    { label: "Email", value: registration.coachEmail },
     { label: "Age Group", value: registration.ageGroup },
     { label: "Division", value: registration.division },
   ];

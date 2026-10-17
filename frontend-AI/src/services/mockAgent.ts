@@ -12,6 +12,7 @@ type Step =
   | "school"
   | "coach"
   | "phone"
+  | "email"
   | "age"
   | "division"
   | "review";
@@ -119,25 +120,33 @@ export async function mockAgentReply(
         "collecting",
       );
 
-    case "phone": {
-      const phone = message.replace(/[\s()-]/g, "");
+    case "phone":
+      state.registration.coachPhone = message.trim();
+      state.step = "email";
 
-      if (!/^\+?[1-9]\d{7,14}$/.test(phone)) {
+      return reply(
+        id,
+        "Thanks! What is the coach's email address?",
+        "collecting",
+      );
+
+    case "email": {
+      const email = message.trim();
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return reply(
           id,
-          "Enter a valid international phone number, for example +27821234567.",
+          "Please enter a valid email address, such as coach@example.com.",
           "collecting",
         );
       }
 
-      state.registration.coachPhone = phone;
+      state.registration.coachEmail = email;
       state.step = "age";
 
       return reply(
         id,
-        `Which age group would you like to register for? ${
-          allowedAgeGroups.length ? allowedAgeGroups.join(", ") : ""
-        }`,
+        "Great! Which age group would you like to register?",
         "collecting",
         undefined,
         allowedAgeGroups.map((age) => ({
