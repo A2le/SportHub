@@ -16,30 +16,49 @@ import type {
   Registration,
   RegistrationStatus,
 } from "../types/chat";
-import RegistrationStatusCard from "../components/RegistrationStatusCard";
+//import RegistrationStatusCard from "../components/RegistrationStatusCard";
 import { getAgentEventInfo } from "../services/agentEventApi";
 import { registerTeam } from "../services/registrationApi";
 import { sendAgentMessage } from "../services/eventApi";
 
-import EventDetailsCard from "../components/EventDetailsCard";
+//import EventDetailsCard from "../components/EventDetailsCard";
 import ChatMessage from "../components/ChatMessage";
 import ChatInput from "../components/ChatInput";
 import RegistrationActions from "../components/RegistrationActions";
-
+import type { RegistrationStatusResponse } from "../types/registrationStatus";
 import {
   checkCanRegister,
-  // getRegistrationStatus,
+  getRegistrationStatus,
 } from "../services/registrationApi";
 
 import { readCanRegister } from "../utils/registration";
-import TeamFixtureLookup from "../components/TeamFixtureLookup";
+//import TeamFixtureLookup from "../components/TeamFixtureLookup";
 import { resetMockConversation } from "../services/mockAgent";
-import { Avatar, Stack, Chip, Skeleton } from "@mui/material";
+import { Avatar, Stack, Chip /* Skeleton */ } from "@mui/material";
 
 import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
+import SportsHubHeader from "../components/SportsHubHeader";
+import { C } from "../theme/sportsHubTheme";
+//import RegistrationStatusCard from "../components/RegistrationStatusCard";
+//import EventDetailsCard from "../components/EventDetailsCard";
+//import TeamFixtureLookup from "../components/TeamFixtureLookup";
 
+import { getTeamFixtures } from "../services/fixtureApi";
+//import { getAgentEventInfo } from "../services/agentEventApi";
+//import type { Fixture } from "../types/fixture";
+//import type { QuickReply } from "../types/chat";
+import type { TeamFixture } from "../types/fixture";
 
 const EVENT_ID = Number(import.meta.env.VITE_EVENT_ID ?? 1);
+const MAIN_MENU: QuickReply[] = [
+  { label: "Register Team", value: "register" },
+  { label: "Event Info", value: "event info" },
+  { label: "Check Fixtures", value: "fixtures" },
+  {
+    label: "Registration Status",
+    value: "registration status",
+  },
+];
 
 function makeMessage(
   role: "user" | "assistant",
@@ -64,14 +83,13 @@ export default function CoachChatPage() {
   const [eventLoading, setEventLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
+  const [awaitingFixtureTeamId, setAwaitingFixtureTeamId] = useState(false);
   const [status, setStatus] = useState<RegistrationStatus>("idle");
 
   const [draft, setDraft] = useState<Registration | null>(null);
 
   const [conversationId] = useState(() => crypto.randomUUID());
-const [registrationRefreshKey, setRegistrationRefreshKey] =
-  useState(0);
+  //const [registrationRefreshKey, setRegistrationRefreshKey] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const busy = loading || saving;
@@ -93,9 +111,9 @@ const [registrationRefreshKey, setRegistrationRefreshKey] =
         setMessages([
           makeMessage(
             "assistant",
-            `Welcome to ${data.name}! How can I assist you today?`,
+            `Hi! Welcome to ${data.name}. How can I help you today?`,
             undefined,
-            [{ label: "Register Team", value: "register" }],
+            MAIN_MENU,
           ),
         ]);
       })
@@ -140,6 +158,27 @@ const [registrationRefreshKey, setRegistrationRefreshKey] =
     });
   }, [messages, status]);
 
+  const addAssistantMessage = (
+    content: string,
+    extras?: {
+      eventDetails?: AgentEventInfo;
+      fixtures?: TeamFixture[];
+      quickReplies?: QuickReply[];
+      registrationStatus?: RegistrationStatusResponse;
+    },
+  ) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content,
+        timestamp: new Date().toISOString(),
+        ...extras,
+      },
+    ]);
+  };
+
   const handleSend = async (text: string) => {
     if (!event || busy) return;
 
@@ -149,6 +188,114 @@ const [registrationRefreshKey, setRegistrationRefreshKey] =
     setMessages((prev) => [...prev, makeMessage("user", text)]);
 
     try {
+      const input = text.trim().toLowerCase();
+      if (
+        input === "registration status" ||
+        input === "check registration status" ||
+        input === "available spots" ||
+        input === "how many spaces are available"
+      ) {
+        try {
+          const data = await getRegistrationStatus(event!.id);
+
+          addAssistantMessage("Here's the latest registration availability:", {
+            registrationStatus: data,
+            quickReplies: MAIN_MENU,
+          });
+        } catch {
+          addAssistantMessage(
+            "I couldn't retrieve registration availability right now. Please try again.",
+            { quickReplies: MAIN_MENU },
+          );
+        }
+
+        return;
+      }
+      if (awaitingFixtureTeamId) {
+        if (input === "cancel") {
+          setAwaitingFixtureTeamId(false);
+
+          addAssistantMessage("No problem! What would you like to do next?", {
+            quickReplies: MAIN_MENU,
+          });
+
+          return;
+        }
+
+        const teamId = Number(input);
+
+        if (!Number.isSafeInteger(teamId) || teamId <= 0) {
+          addAssistantMessage("Please enter a valid numeric team ID.", {
+            quickReplies: [{ label: "Cancel", value: "cancel" }],
+          });
+
+          return;
+        }
+
+        try {
+          const result = await getTeamFixtures(teamId, event!.id);
+
+          setAwaitingFixtureTeamId(false);
+
+          if (result.fixtures.length === 0) {
+            addAssistantMessage(
+              "I couldn't find fixtures for this team yet. They may not have been generated.",
+              { quickReplies: MAIN_MENU },
+            );
+          } else {
+            addAssistantMessage(
+              `I found ${result.fixtureCount} fixtures for your team.`,
+              {
+                fixtures: result.fixtures,
+                quickReplies: MAIN_MENU,
+              },
+            );
+          }
+        } catch {
+          addAssistantMessage(
+            "I couldn't retrieve those fixtures. Please check the team ID and try again.",
+            {
+              quickReplies: [{ label: "Cancel", value: "cancel" }],
+            },
+          );
+        }
+
+        return;
+      }
+
+      if (
+        status === "idle" ||
+        status === "completed" ||
+        status === "cancelled"
+      ) {
+        if (input === "event info") {
+          try {
+            const details = await getAgentEventInfo(event!.id);
+
+            addAssistantMessage("Here are the details for your event:", {
+              eventDetails: details,
+              quickReplies: MAIN_MENU,
+            });
+          } catch {
+            addAssistantMessage(
+              "I couldn't retrieve the event information right now.",
+              { quickReplies: MAIN_MENU },
+            );
+          }
+
+          return;
+        }
+
+        if (input === "fixtures" || input === "check fixtures") {
+          setAwaitingFixtureTeamId(true);
+
+          addAssistantMessage(
+            "Sure! What is your team ID? You can also type cancel.",
+          );
+
+          return;
+        }
+      }
       const response = await sendAgentMessage(
         {
           conversation_id: conversationId,
@@ -211,10 +358,10 @@ const [registrationRefreshKey, setRegistrationRefreshKey] =
 
       setStatus("completed");
       setDraft(null);
-setRegistrationRefreshKey((prev) => prev + 1);
+      //setRegistrationRefreshKey((prev) => prev + 1);
       const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
 
-      setMessages((prev) => [
+      /* setMessages((prev) => [
         ...prev,
         makeMessage(
           "assistant",
@@ -222,6 +369,18 @@ setRegistrationRefreshKey((prev) => prev + 1);
             ? `Demo registration completed for ${draft.teamName}. No data was saved to the database.`
             : `Registration request submitted for ${draft.teamName}. Please check its status with the organiser.`,
         ),
+      ]); */
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: isDemoMode
+            ? `Demo registration completed for ${draft.teamName}. No data was saved to the database.`
+            : "Your registration request has been submitted successfully. You can now check fixtures or register another team.",
+          timestamp: new Date().toISOString(),
+          quickReplies: MAIN_MENU,
+        },
       ]);
       resetMockConversation(conversationId);
     } catch (err: unknown) {
@@ -252,148 +411,210 @@ setRegistrationRefreshKey((prev) => prev + 1);
   return (
     <Box
       sx={{
-        minHeight: "100vh",
-        bgcolor: "#f5f7fb",
-        py: 4,
+        height: "100dvh",
+        minHeight: 480,
+        bgcolor: C.background,
+        display: "flex",
+        flexDirection: "column",
       }}
     >
-      <Container maxWidth="md">
-        <Typography variant="h4" sx={{ fontWeight: 700, mb: 3 }}>
-          Amusema Sports AI
-        </Typography>
+      <SportsHubHeader />
 
-        {eventLoading && <CircularProgress />}
-
-        {event && (
-          <>
-            <EventDetailsCard event={event} />
-
-            <Box sx={{ mb: 3 }}>
-              <RegistrationStatusCard
-    eventId={event.id}
-    refreshKey={registrationRefreshKey}
-  />
-            </Box>
-          </>
-        )}
-
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
-
+      <Container
+        maxWidth="md"
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+          pt: { xs: 1, md: 3 },
+          pb: { xs: 0, md: 3 },
+          px: { xs: 0, sm: 2 },
+        }}
+      >
         <Paper
+          elevation={0}
           sx={{
-            height: 600,
+            flex: 1,
+            minHeight: 0,
             display: "flex",
             flexDirection: "column",
-            borderRadius: 3,
             overflow: "hidden",
+            borderRadius: { xs: 0, sm: 3 },
+            border: {
+              xs: "none",
+              sm: `1px solid ${C.border}`,
+            },
           }}
         >
+          {/* Chat header */}
           <Box
             sx={{
               px: 3,
               py: 2,
-              borderBottom: "1px solid #E3E8EF",
-              bgcolor: "#FFFFFF",
+              bgcolor: C.white,
+              borderBottom: `1px solid ${C.border}`,
             }}
           >
-            <Stack direction="row" sx={{ alignItems: "center" }} spacing={2}>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
               <Avatar
                 sx={{
-                  bgcolor: "#E6F4ED",
-                  color: "#176B54",
                   width: 44,
                   height: 44,
+                  bgcolor: C.greenLight,
+                  color: C.green,
+                  borderRadius: 2,
                 }}
               >
                 <SmartToyOutlinedIcon />
               </Avatar>
 
-              <Box sx={{ flex: 1 }}>
-                <Typography sx={{ fontWeight: 700 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{ fontWeight: 800 }}>
                   Amusema AI Assistant
                 </Typography>
 
-                <Typography variant="caption" color="text.secondary">
-                  Sports event registration assistant
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  noWrap
+                  sx={{
+                    display: "block",
+                  }}
+                >
+                  {event
+                    ? `${event.name} • ${event.venue}`
+                    : "Football event registration assistant"}
                 </Typography>
               </Box>
 
               <Chip
+                label="Web Chat"
                 size="small"
-                label="Demo AI"
-                variant="outlined"
                 sx={{
-                  borderColor: "#176B54",
-                  color: "#176B54",
-                  fontWeight: 600,
+                  bgcolor: C.greenLight,
+                  color: C.green,
+                  fontWeight: 700,
                 }}
               />
             </Stack>
           </Box>
 
+          {/* Scrollable conversation */}
           <Box
             sx={{
               flex: 1,
+              minHeight: 0,
               overflowY: "auto",
-              px: { xs: 2, md: 3 },
+              px: { xs: 2, sm: 3 },
               py: 3,
-              bgcolor: "#FAFBFC",
+              bgcolor: C.background,
             }}
           >
+            {eventLoading && (
+              <Box sx={{ textAlign: "center", py: 4 }}>
+                <CircularProgress size={28} />
+              </Box>
+            )}
+
+            {error && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+              </Alert>
+            )}
+
+            {/* Welcome section */}
+            {event && (
+              <Box sx={{ textAlign: "center", mb: 4 }}>
+                <Avatar
+                  sx={{
+                    bgcolor: C.greenLight,
+                    color: C.green,
+                    width: 56,
+                    height: 56,
+                    mx: "auto",
+                    mb: 2,
+                  }}
+                >
+                  <SmartToyOutlinedIcon fontSize="large" />
+                </Avatar>
+
+                <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                  Welcome to SportsHub AI
+                </Typography>
+
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mt: 1 }}
+                >
+                  Your football event registration and fixtures assistant.
+                </Typography>
+
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ display: "block", mt: 1 }}
+                >
+                  {event.name} • {event.ageGroups}
+                </Typography>
+              </Box>
+            )}
+
+            {/* Conversation messages */}
             {messages.map((message, index) => {
-              const isLatestMessage = index === messages.length - 1;
+              const isLatest = index === messages.length - 1;
 
               return (
                 <ChatMessage
                   key={message.id}
                   message={message}
                   onQuickReply={
-                    isLatestMessage && !busy && status !== "review"
+                    isLatest && !busy && status !== "review"
                       ? (value) => void handleSend(value)
                       : undefined
                   }
-                  quickRepliesDisabled={!isLatestMessage || busy}
+                  quickRepliesDisabled={
+                    !isLatest || busy || status === "review"
+                  }
                 />
               );
             })}
 
+            {/* Typing indicator */}
             {loading && (
               <Stack
                 direction="row"
                 spacing={1.5}
-                sx={{ alignItems: "flex-end", mb: 2 }}
+                sx={{ mb: 2, alignItems: "center" }}
               >
                 <Avatar
                   sx={{
-                    bgcolor: "#E6F4ED",
-                    color: "#176B54",
                     width: 34,
                     height: 34,
+                    bgcolor: C.greenLight,
+                    color: C.green,
                   }}
                 >
                   <SmartToyOutlinedIcon fontSize="small" />
                 </Avatar>
 
-                <Box
+                <Paper
+                  elevation={0}
                   sx={{
-                    bgcolor: "#F3F5F8",
-                    borderRadius: 3,
                     p: 2,
-                    width: 140,
+                    borderRadius: 3,
+                    color: C.muted,
                   }}
                 >
-                  <Stack spacing={1}>
-                    <Skeleton variant="text" width="90%" />
-                    <Skeleton variant="text" width="60%" />
-                  </Stack>
-                </Box>
+                  <Typography variant="body2">
+                    Amusema AI is typing...
+                  </Typography>
+                </Paper>
               </Stack>
             )}
 
+            {/* Registration confirmation */}
             {status === "review" && draft && (
               <RegistrationActions
                 onConfirm={() => void handleConfirm()}
@@ -402,29 +623,41 @@ setRegistrationRefreshKey((prev) => prev + 1);
               />
             )}
 
+            {/* Saving state */}
             {saving && (
-              <Box sx={{ display: "flex", gap: 2, p: 2 }}>
-                <CircularProgress size={20} />
-                <Typography>Submitting registration...</Typography>
-              </Box>
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ p: 2, alignItems: "center" }}
+              >
+                <CircularProgress size={18} />
+                <Typography variant="body2">
+                  Submitting registration...
+                </Typography>
+              </Stack>
             )}
 
             <div ref={bottomRef} />
           </Box>
 
+          {/* Message input */}
           <ChatInput
             onSend={handleSend}
-            disabled={busy || !event || status === "review"}
+            disabled={!event || busy || status === "review"}
           />
-        </Paper>
 
-        {event && (
-          <Box sx={{ mt: 3 }}>
-            <Paper sx={{ borderRadius: 3 }}>
-              <TeamFixtureLookup eventId={event.id} />
-            </Paper>
-          </Box>
-        )}
+          <Typography
+            variant="caption"
+            sx={{
+              textAlign: "center",
+              pb: 1.5,
+              bgcolor: C.white,
+              color: C.muted,
+            }}
+          >
+            Powered by Amusema Sports AI
+          </Typography>
+        </Paper>
       </Container>
     </Box>
   );

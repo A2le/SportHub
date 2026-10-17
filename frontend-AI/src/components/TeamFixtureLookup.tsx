@@ -1,4 +1,6 @@
+
 import { useState } from "react";
+
 import {
   Alert,
   Box,
@@ -11,23 +13,26 @@ import {
 
 import { getTeamFixtures } from "../services/fixtureApi";
 import type { TeamFixturesResponse } from "../types/fixture";
-import FixtureCard from "./FixtureCard";
+import TeamFixtureCard from "./TeamFixtureCard";
+
 interface Props {
   eventId: number;
 }
 
 export default function TeamFixtureLookup({ eventId }: Props) {
   const [teamId, setTeamId] = useState("");
+
   const [fixtures, setFixtures] =
-  useState<TeamFixturesResponse | null>(null);
+    useState<TeamFixturesResponse | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSearch = async () => {
-    const id = Number(teamId);
+    const id = Number(teamId.trim());
 
     if (!Number.isSafeInteger(id) || id <= 0) {
-      setError("Enter a valid team ID.");
+      setError("Please enter a valid team ID.");
       return;
     }
 
@@ -47,7 +52,14 @@ export default function TeamFixtureLookup({ eventId }: Props) {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h6" sx={{fontWeight:700, mb:2}}>
+      <Typography
+        variant="h6"
+        sx={{
+          fontWeight: 700,
+          mb: 2,
+          color: "#101D33",
+        }}
+      >
         Check Team Fixtures
       </Typography>
 
@@ -58,56 +70,69 @@ export default function TeamFixtureLookup({ eventId }: Props) {
           value={teamId}
           onChange={(e) => setTeamId(e.target.value)}
           fullWidth
+          size="small"
         />
 
         <Button
           variant="contained"
           disabled={loading}
           onClick={() => void handleSearch()}
+          sx={{
+            bgcolor: "#079447",
+            "&:hover": {
+              bgcolor: "#06783A",
+            },
+          }}
         >
           Check Fixtures
         </Button>
 
-        {loading && <CircularProgress size={24} />}
+        {loading && (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
+            <CircularProgress size={24} />
+          </Box>
+        )}
 
         {error && <Alert severity="error">{error}</Alert>}
 
-        {fixtures && fixtures.fixtureCount === 0 && (
-  <Alert severity="info">
-    No fixtures are currently available for Team {fixtures.teamId}
-    in Event {fixtures.eventId}.
-    Please check again after the organiser generates the match schedule.
-  </Alert>
-)}
+        {/* No fixtures available */}
+        {fixtures && fixtures.fixtures.length === 0 && (
+          <Alert severity="info">
+            No fixtures are currently available for Team{" "}
+            {fixtures.teamId} in Event {fixtures.eventId}.
+            Please check again after the organiser generates
+            the match schedule.
+          </Alert>
+        )}
 
-{fixtures && fixtures.fixtureCount > 0 && (
-  <Box sx={{ bgcolor: "#f5f7fb", p: 2, borderRadius: 2 }}>
-    {/* <Typography variant="h6" sx={{mb:2}}>
-      Team Fixtures ({fixtures.fixtureCount})
-    </Typography> */}
+        {/* Fixtures available */}
+        {fixtures && fixtures.fixtures.length > 0 && (
+          <Box
+            sx={{
+              bgcolor: "#F3F6FA",
+              p: 2,
+              borderRadius: 2,
+            }}
+          >
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 700,
+                mb: 2,
+                color: "#101D33",
+              }}
+            >
+              Team Fixtures ({fixtures.fixtureCount})
+            </Typography>
 
-   {fixtures && fixtures.fixtureCount === 0 && (
-  <Alert severity="info">
-    No fixtures are available for this team yet.
-  </Alert>
-)}
-
-{fixtures && fixtures.fixtureCount > 0 && (
-  <Box sx={{ mt: 3 }}>
-    <Typography variant="h6" sx={{fontWeight:700, md:2}}>
-      Team Fixtures ({fixtures.fixtureCount})
-    </Typography>
-
-    {fixtures.fixtures.map((fixture) => (
-      <FixtureCard
-        key={fixture.id}
-        fixture={fixture}
-      />
-    ))}
-  </Box>
-)}
-  </Box>
-)}
+            {fixtures.fixtures.map((fixture) => (
+              <TeamFixtureCard
+                key={fixture.id}
+                fixture={fixture}
+              />
+            ))}
+          </Box>
+        )}
       </Stack>
     </Box>
   );

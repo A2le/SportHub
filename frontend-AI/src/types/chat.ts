@@ -1,3 +1,9 @@
+import type { TeamFixture } from "./fixture";
+import type { AgentEventInfo } from "./agentEvent";
+import type {
+  RegistrationStatusResponse,
+} from "./registrationStatus";
+
 export type ChatRole = "user" | "assistant";
 
 export interface Registration {
@@ -24,6 +30,9 @@ export interface ChatMessage {
   timestamp: string;
   registration?: Registration;
   quickReplies?: QuickReply[];
+  eventDetails?: AgentEventInfo;
+  fixtures?: TeamFixture[];
+  registrationStatus?: RegistrationStatusResponse;
 }
 
 export interface AgentRequest {

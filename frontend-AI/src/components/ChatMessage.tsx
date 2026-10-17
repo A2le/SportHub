@@ -1,10 +1,4 @@
-import {
-  Avatar,
-  Box,
-  Paper,
-  Stack,
-  Typography,
-} from "@mui/material";
+import { Avatar, Box, Paper, Stack, Typography } from "@mui/material";
 
 import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlined";
@@ -12,6 +6,10 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlined";
 import type { ChatMessage as Message } from "../types/chat";
 import RegistrationSummary from "./RegistrationSummary";
 import QuickReplyOptions from "./QuickReplyOptions";
+import EventInfoMessage from "./EventInfoMessage";
+//import FixtureCard from "./FixtureCard";
+import TeamFixtureCard from "./TeamFixtureCard";
+import RegistrationStatusMessage from "./RegistrationStatusMessage";
 interface Props {
   message: Message;
   onQuickReply?: (value: string) => void;
@@ -28,12 +26,10 @@ export default function ChatMessage({
   const isSuccess =
     !isUser &&
     /registration (completed|successful)|registered successfully/i.test(
-      message.content
+      message.content,
     );
 
-  const formattedTime = new Date(
-    message.timestamp
-  ).toLocaleTimeString([], {
+  const formattedTime = new Date(message.timestamp).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -52,7 +48,7 @@ export default function ChatMessage({
         <Avatar
           sx={{
             bgcolor: "#E6F4ED",
-            color: "#176B54",
+            color: "#079447",
             width: 34,
             height: 34,
           }}
@@ -66,7 +62,7 @@ export default function ChatMessage({
           <Typography
             variant="caption"
             sx={{
-              color: "#176B54",
+              color: "#079447",
               fontWeight: 700,
               display: "block",
               mb: 0.5,
@@ -81,30 +77,23 @@ export default function ChatMessage({
           elevation={0}
           sx={{
             px: 2,
-            py: 1.5,
-            bgcolor: isUser
-              ? "#176B54"
-              : isSuccess
-                ? "#E8F5E9"
-                : "#F3F5F8",
-            color: isUser ? "#FFFFFF" : "#1C2935",
-            borderRadius: 3,
+            py: 1,
+            bgcolor: isUser ? "#079447" : "#FFFFFF",
+            color: isUser ? "#FFFFFF" : "#101D33",
+            borderRadius: 1,
             borderBottomRightRadius: isUser ? 0.5 : 12,
             borderBottomLeftRadius: isUser ? 12 : 0.5,
-            border: isSuccess
-              ? "1px solid #B7DFC4"
-              : "1px solid transparent",
+            border: isUser ? "1px solid #079447" : "1px solid #E2E8F0",
           }}
         >
           {isSuccess && (
             <Stack
               direction="row"
-              
               spacing={1}
-              sx={{ mb: 1, color: "#176B54", alignItems:"center" }}
+              sx={{ mb: 1, color: "#079447", alignItems: "center" }}
             >
               <CheckCircleOutlineIcon fontSize="small" />
-              <Typography variant="subtitle2" sx={{fontWeight:700}}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                 Registration update
               </Typography>
             </Stack>
@@ -113,7 +102,7 @@ export default function ChatMessage({
           <Typography
             variant="body2"
             sx={{
-              lineHeight: 1.8,
+              lineHeight: 1.5,
               whiteSpace: "pre-wrap",
               overflowWrap: "anywhere",
             }}
@@ -122,20 +111,45 @@ export default function ChatMessage({
           </Typography>
 
           {message.registration && (
-            <RegistrationSummary
-              registration={message.registration}
-            />
+            <RegistrationSummary registration={message.registration} />
+          )}
+          {message.eventDetails && (
+            <EventInfoMessage event={message.eventDetails} />
           )}
 
-{!isUser &&
-  message.quickReplies &&
-  message.quickReplies.length > 0 && (
-    <QuickReplyOptions
-      options={message.quickReplies}
-      onSelect={onQuickReply ?? (() => {})}
-      disabled={quickRepliesDisabled || !onQuickReply}
-    />
-  )}
+          {/* {message.fixtures && message.fixtures.length > 0 && (
+  <Box sx={{ mt: 2 }}>
+    {message.fixtures.map((fixture) => (
+      <FixtureCard
+        key={fixture.id}
+        fixture={fixture}
+      />
+    ))}
+  </Box>
+)} */}
+          {message.fixtures && message.fixtures.length > 0 && (
+            <Box sx={{ mt: 2 }}>
+              {message.fixtures.map((fixture) => (
+                <TeamFixtureCard key={fixture.id} fixture={fixture} />
+              ))}
+            </Box>
+          )}
+
+          {message.registrationStatus && (
+  <RegistrationStatusMessage
+    status={message.registrationStatus}
+  />
+)}
+
+          {!isUser &&
+            message.quickReplies &&
+            message.quickReplies.length > 0 && (
+              <QuickReplyOptions
+                options={message.quickReplies}
+                onSelect={onQuickReply ?? (() => {})}
+                disabled={quickRepliesDisabled || !onQuickReply}
+              />
+            )}
           <Typography
             variant="caption"
             sx={{
