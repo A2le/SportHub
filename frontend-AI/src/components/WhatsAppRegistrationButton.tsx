@@ -1,9 +1,11 @@
-import { Button, Alert, Stack } from "@mui/material";
+
+import { Alert, Button, Stack } from "@mui/material";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
-import type { Event } from "../types/event";
+
+import type { AgentEventInfo } from "../types/agentEvent";
 
 interface Props {
-  event: Event;
+  event: AgentEventInfo;
 }
 
 export default function WhatsAppRegistrationButton({
@@ -14,7 +16,7 @@ export default function WhatsAppRegistrationButton({
   ).replace(/\D/g, "");
 
   const message =
-    `Hi Amusema! I want to register my team ` +
+    `Hi SportsHub AI! I would like to register my team ` +
     `for ${event.name}. Event ID: ${event.id}`;
 
   const whatsappUrl = phoneNumber
@@ -22,32 +24,35 @@ export default function WhatsAppRegistrationButton({
     : "";
 
   return (
-    <Stack spacing={2}>
-      {!phoneNumber && (
-        <Alert severity="warning">
-          WhatsApp business number is not configured.
-        </Alert>
-      )}
-
+    <Stack spacing={1}>
       <Button
-        variant="contained"
-        color="success"
-        size="large"
+        variant="outlined"
         startIcon={<WhatsAppIcon />}
-        disabled={!phoneNumber}
-        component="a"
-        href={whatsappUrl || undefined}
+        href={whatsappUrl}
         target="_blank"
         rel="noopener noreferrer"
+        disabled={!phoneNumber}
         sx={{
-          borderRadius: 3,
-          py: 1.5,
-          textTransform: "none",
+          borderColor: "#079447",
+          color: "#079447",
           fontWeight: 700,
+          textTransform: "none",
+          borderRadius: 2,
+          "&:hover": {
+            bgcolor: "#DDF7E7",
+            borderColor: "#06783A",
+          },
         }}
       >
-        Register via WhatsApp
+        Continue on WhatsApp
       </Button>
+
+      {!phoneNumber && (
+        <Alert severity="info">
+          WhatsApp will be available once the
+          business number is configured.
+        </Alert>
+      )}
     </Stack>
   );
 }
