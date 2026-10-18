@@ -11,7 +11,11 @@ var builder = WebApplication.CreateBuilder(args);
 // MySQL + EF Core
 var connectionString = builder.Configuration.GetConnectionString("Default");
 builder.Services.AddDbContext<SportHubDbContext>(opt =>
-    opt.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
+    opt.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 35)),
+        mySqlOptions => mySqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorNumbersToAdd: null)));
 
 // Repositories
 builder.Services.AddScoped<IEventRepository, EventRepository>();
@@ -81,5 +85,22 @@ app.UseCors("AllowAll");
 
 
 app.UseCors();
+
+// Health endpoint
+app.MapGet("/health", () => Results.Ok(new 
+{ 
+    status = "Healthy", 
+    timestamp = DateTime.UtcNow,
+    environment = app.Environment.EnvironmentName 
+}));
+
+// Root endpoint
+app.MapGet("/", () => Results.Ok(new 
+{
+    name = "SportHub API",
+    version = "1.0",
+    endpoints = new[] { "/Events", "/Teams", "/Registrations", "/Fixtures", "/swagger" }
+}));
+
 app.MapControllers();
 app.Run();
