@@ -16,6 +16,13 @@ public class SportHubDbContext(DbContextOptions<SportHubDbContext> options) : Db
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Configure lowercase table names to match MySQL schema
+        modelBuilder.Entity<Event>().ToTable("events");
+        modelBuilder.Entity<Team>().ToTable("teams");
+        modelBuilder.Entity<Fixture>().ToTable("fixtures");
+        modelBuilder.Entity<Registration>().ToTable("registrations");
+        modelBuilder.Entity<Notification>().ToTable("notifications");
+
         modelBuilder.Entity<Event>()
             .Property(e => e.Id)
             .ValueGeneratedOnAdd();
