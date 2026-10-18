@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://your-api-domain.com",
+      "url": "https://sporthub-rng4.onrender.com",
       "description": "SportHub API Server"
     }
   ],
