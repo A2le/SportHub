@@ -140,7 +140,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["eventId", "teamName", "schoolName", "coachName", "coachPhone", "ageGroup"],
+                "required": ["eventId", "teamName", "schoolName", "coachName", "coachPhone", "coachEmail", "ageGroup"],
                 "properties": {
                   "eventId": {
                     "type": "integer",
@@ -161,6 +161,11 @@
                   "coachPhone": {
                     "type": "string",
                     "description": "Phone number of the coach"
+                  },
+                  "coachEmail": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email address of the coach"
                   },
                   "ageGroup": {
                     "type": "string",
