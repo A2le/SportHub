@@ -94,6 +94,20 @@ app.MapGet("/health", () => Results.Ok(new
     environment = app.Environment.EnvironmentName 
 }));
 
+// Database health check
+app.MapGet("/health/db", async (SportHubDbContext db) =>
+{
+    try
+    {
+        await db.Database.CanConnectAsync();
+        return Results.Ok(new { status = "Database Connected", timestamp = DateTime.UtcNow });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(detail: ex.Message, statusCode: 500, title: "Database Connection Failed");
+    }
+});
+
 // Root endpoint
 app.MapGet("/", () => Results.Ok(new 
 {
