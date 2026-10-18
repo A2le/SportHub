@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: sporthub-api
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    region: frankfurt # EU region close to your RDS
+    plan: free
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ConnectionStrings__Default
+        value: Server=sporthub-db.cr422g0k08ae.eu-west-1.rds.amazonaws.com;Port=3306;User=admin;Password=SportHub2024!;Database=sporthub;SslMode=None;AllowPublicKeyRetrieval=True;
+    healthCheckPath: /health
