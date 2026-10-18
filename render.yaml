@@ -2,9 +2,9 @@ services:
   - type: web
     name: sporthub-api
     env: docker
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
-    region: frankfurt # EU region close to your RDS
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    region: frankfurt
     plan: free
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
