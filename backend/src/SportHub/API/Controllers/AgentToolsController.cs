@@ -83,6 +83,8 @@ public class AgentToolsController(
             eventInfo.EventType,
             eventInfo.StartDate,
             eventInfo.EndDate,
+            eventInfo.StartTime,
+            eventInfo.EndTime,
             eventInfo.Venue,
             eventInfo.AgeGroups,
             eventInfo.NumberOfTeams,
