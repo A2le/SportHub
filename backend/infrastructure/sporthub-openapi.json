@@ -70,6 +70,21 @@
                     "type": "integer",
                     "default": 60,
                     "description": "Duration of each match in minutes"
+                  },
+                  "breakBetweenMatchesMinutes": {
+                    "type": "integer",
+                    "default": 15,
+                    "description": "Break time between consecutive matches in minutes"
+                  },
+                  "maxMatchesPerTeam": {
+                    "type": "integer",
+                    "default": 3,
+                    "description": "Maximum number of matches each team should play during the event"
+                  },
+                  "minRestTimeBetweenMatches": {
+                    "type": "integer",
+                    "default": 60,
+                    "description": "Minimum rest time in minutes that a team must have between their matches"
                   }
                 }
               }
