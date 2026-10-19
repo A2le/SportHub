@@ -99,10 +99,14 @@ public class WhatsAppWebhookController : ControllerBase
             
             await foreach (var payloadPart in response.Completion)
             {
-                if (payloadPart.Chunk != null)
+                if (payloadPart is ResponseStream responseStream && responseStream.Chunk != null)
                 {
-                    var chunkText = Encoding.UTF8.GetString(payloadPart.Chunk.Bytes.ToArray());
-                    fullResponse.Append(chunkText);
+                    var chunkBytes = responseStream.Chunk.Bytes;
+                    if (chunkBytes != null && chunkBytes.Length > 0)
+                    {
+                        var chunkText = Encoding.UTF8.GetString(chunkBytes.ToArray());
+                        fullResponse.Append(chunkText);
+                    }
                 }
             }
 
