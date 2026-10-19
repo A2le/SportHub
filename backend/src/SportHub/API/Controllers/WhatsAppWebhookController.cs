@@ -81,11 +81,14 @@ public class WhatsAppWebhookController : ControllerBase
                 ?? throw new InvalidOperationException("AWS:BedrockAgentId not configured");
             var agentAliasId = _configuration["AWS:BedrockAgentAliasId"] ?? "TSTALIASID";
 
+            // Create session ID from phone number (remove special characters)
+            var sessionId = userId.Replace("whatsapp:", "").Replace("+", "").Replace(" ", "");
+            
             var request = new InvokeAgentRequest
             {
                 AgentId = agentId,
                 AgentAliasId = agentAliasId,
-                SessionId = userId.Replace("whatsapp:", "").Replace("+", ""), // Use phone as session ID
+                SessionId = sessionId,
                 InputText = userMessage
             };
 

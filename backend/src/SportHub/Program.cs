@@ -39,9 +39,32 @@ builder.Services.AddScoped<EmailNotificationService>();
 builder.Services.AddScoped<TwilioWhatsAppService>();
 
 // AWS SDK Services
-builder.Services.AddAWSService<IAmazonSimpleEmailService>();
-builder.Services.AddAWSService<IAmazonSimpleNotificationService>();
-builder.Services.AddAWSService<IAmazonBedrockAgentRuntime>();
+var awsOptions = builder.Configuration.GetAWSOptions();
+awsOptions.Region = Amazon.RegionEndpoint.GetBySystemName(
+    builder.Configuration["AWS:Region"] ?? "eu-west-1");
+
+builder.Services.AddAWSService<IAmazonSimpleEmailService>(awsOptions);
+builder.Services.AddAWSService<IAmazonSimpleNotificationService>(awsOptions);
+
+// Bedrock Agent Runtime - may use different credentials
+var bedrockAccessKey = builder.Configuration["AWS:BedrockAccessKeyId"];
+var bedrockSecretKey = builder.Configuration["AWS:BedrockSecretAccessKey"];
+
+if (!string.IsNullOrEmpty(bedrockAccessKey) && !string.IsNullOrEmpty(bedrockSecretKey))
+{
+    // Use separate Bedrock credentials if provided
+    var bedrockOptions = new AWSOptions
+    {
+        Credentials = new Amazon.Runtime.BasicAWSCredentials(bedrockAccessKey, bedrockSecretKey),
+        Region = Amazon.RegionEndpoint.GetBySystemName(builder.Configuration["AWS:Region"] ?? "eu-west-1")
+    };
+    builder.Services.AddAWSService<IAmazonBedrockAgentRuntime>(bedrockOptions);
+}
+else
+{
+    // Fall back to default credentials
+    builder.Services.AddAWSService<IAmazonBedrockAgentRuntime>(awsOptions);
+}
 
 // CORS for frontend demo
 builder.Services.AddCors(options =>
