@@ -97,16 +97,30 @@ public class WhatsAppWebhookController : ControllerBase
             // Process the streaming response
             var fullResponse = new StringBuilder();
             
-            await foreach (var payloadPart in response.Completion)
+            // The response.Completion is an IAsyncEnumerable of events
+            await foreach (var completionEvent in response.Completion)
             {
-                if (payloadPart is ResponseStream responseStream && responseStream.Chunk != null)
+                // Each event can have different types - we need to handle the chunk type
+                // Use dynamic to access properties since the exact type structure varies
+                dynamic eventData = completionEvent;
+                
+                try
                 {
-                    var chunkBytes = responseStream.Chunk.Bytes;
-                    if (chunkBytes != null && chunkBytes.Length > 0)
+                    // Try to access chunk.bytes pattern
+                    if (eventData.Chunk != null && eventData.Chunk.Bytes != null)
                     {
-                        var chunkText = Encoding.UTF8.GetString(chunkBytes.ToArray());
-                        fullResponse.Append(chunkText);
+                        byte[] bytes = eventData.Chunk.Bytes.ToArray();
+                        if (bytes.Length > 0)
+                        {
+                            var chunkText = Encoding.UTF8.GetString(bytes);
+                            fullResponse.Append(chunkText);
+                        }
                     }
+                }
+                catch
+                {
+                    // If we can't parse this event, skip it
+                    continue;
                 }
             }
 
