@@ -4,6 +4,7 @@ using SportHub.Application.Services;
 using SportHub.Infrastructure.Data;
 using Amazon.SimpleEmail;
 using Amazon.SimpleNotificationService;
+using Amazon.BedrockAgentRuntime;
 using Amazon.Extensions.NETCore.Setup;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -35,10 +36,12 @@ builder.Services.AddScoped<FixtureService>();
 
 builder.Services.AddScoped<WhatsAppService>();
 builder.Services.AddScoped<EmailNotificationService>();
+builder.Services.AddScoped<TwilioWhatsAppService>();
 
 // AWS SDK Services
 builder.Services.AddAWSService<IAmazonSimpleEmailService>();
 builder.Services.AddAWSService<IAmazonSimpleNotificationService>();
+builder.Services.AddAWSService<IAmazonBedrockAgentRuntime>();
 
 // CORS for frontend demo
 builder.Services.AddCors(options =>
