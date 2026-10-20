@@ -261,7 +261,7 @@ public class WhatsAppWebhookController : ControllerBase
             }
 
             var teamResponseJson = await teamResponse.Content.ReadAsStringAsync();
-            var teamData = JsonSerializer.Deserialize<TeamResponse>(teamResponseJson, new JsonSerializerOptions 
+            var teamData = JsonSerializer.Deserialize<WhatsAppTeamResponse>(teamResponseJson, new JsonSerializerOptions 
             { 
                 PropertyNameCaseInsensitive = true 
             });
@@ -360,7 +360,7 @@ public class EventInfo
     public DateTime EndDate { get; set; }
 }
 
-public class TeamResponse
+public class WhatsAppTeamResponse
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
