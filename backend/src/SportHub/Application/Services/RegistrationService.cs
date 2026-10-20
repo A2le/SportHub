@@ -9,8 +9,8 @@ public class RegistrationService(
     ITeamRepository teams, 
     INotificationRepository notifications, 
     IEventRepository events,
-    EmailNotificationService emailService,
-    WhatsAppService whatsAppService)
+    EmailNotificationService? emailService = null,
+    WhatsAppService? whatsAppService = null)
 {
     public async Task<RegistrationResponse?> GetAsync(int id)
     {
@@ -69,7 +69,7 @@ public class RegistrationService(
             try
             {
                 // Send email notification (if coach email is available)
-                if (!string.IsNullOrEmpty(teamEntity.CoachEmail))
+                if (emailService != null && !string.IsNullOrEmpty(teamEntity.CoachEmail))
                 {
                     await emailService.SendRegistrationConfirmationAsync(
                         teamEntity.CoachEmail,
@@ -80,7 +80,7 @@ public class RegistrationService(
                 }
 
                 // Send WhatsApp notification (if coach phone is available)
-                if (!string.IsNullOrEmpty(teamEntity.CoachPhone))
+                if (whatsAppService != null && !string.IsNullOrEmpty(teamEntity.CoachPhone))
                 {
                     await whatsAppService.SendRegistrationConfirmationAsync(
                         teamEntity.CoachPhone,
