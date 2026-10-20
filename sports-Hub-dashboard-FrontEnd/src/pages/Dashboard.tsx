@@ -7,6 +7,7 @@ import {
   Button,
   Card,
   CardContent,
+  CardMedia,
   Chip,
   CircularProgress,
   Grid,
@@ -24,20 +25,44 @@ import SportsSoccerIcon from "@mui/icons-material/SportsSoccer";
 import LocationOnOutlinedIcon from "@mui/icons-material/LocationOnOutlined";
 
 import Sidebar from "../components/Sidebar";
-import { eventsApi, type EventResponse } from "../api";
+import { eventsApi, registrationsApi, type EventResponse } from "../api";
+
+// Generic sport images keyed by event type keyword
+const SPORT_IMAGES: Record<string, string> = {
+  football: "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=900&q=80",
+  rugby: "https://images.unsplash.com/photo-1519861531473-9200262188bf?auto=format&fit=crop&w=900&q=80",
+  default: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=900&q=80",
+};
+
+function getSportImage(eventType: string): string {
+  const lower = eventType.toLowerCase();
+  if (lower.includes("football")) return SPORT_IMAGES.football;
+  if (lower.includes("rugby")) return SPORT_IMAGES.rugby;
+  return SPORT_IMAGES.default;
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
 
   const [events, setEvents] = useState<EventResponse[]>([]);
+  const [registeredCounts, setRegisteredCounts] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [sport, setSport] = useState("All");
 
   useEffect(() => {
-    eventsApi.list()
-      .then(setEvents)
-      .finally(() => setLoading(false));
+    eventsApi.list().then(async (evs) => {
+      setEvents(evs);
+      // fetch registration counts for all events in parallel
+      const counts = await Promise.all(
+        evs.map((e) =>
+          registrationsApi.getByEvent(e.id)
+            .then((regs) => ({ id: e.id, count: regs.length }))
+            .catch(() => ({ id: e.id, count: 0 }))
+        )
+      );
+      setRegisteredCounts(Object.fromEntries(counts.map((c) => [c.id, c.count])));
+    }).finally(() => setLoading(false));
   }, []);
 
   const sports = ["All", ...new Set(events.map((e) => e.eventType))];
@@ -52,7 +77,7 @@ export default function Dashboard() {
     });
   }, [events, search, sport]);
 
-  const totalTeams = events.reduce((sum, e) => sum + e.numberOfTeams, 0);
+  const totalTeams = Object.values(registeredCounts).reduce((sum, c) => sum + c, 0);
 
   const formatDate = (date: string) =>
     new Date(`${date}T12:00:00`).toLocaleDateString("en-ZA", {
@@ -112,7 +137,7 @@ export default function Dashboard() {
           {[
             { label: "Total Tournaments", value: events.length, icon: <EmojiEventsIcon /> },
             { label: "Upcoming Events", value: events.length, icon: <CalendarMonthIcon /> },
-            { label: "Total Teams", value: totalTeams, icon: <GroupsIcon /> },
+            { label: "Registered Teams", value: totalTeams, icon: <GroupsIcon /> },
             { label: "Sports Categories", value: sports.length - 1, icon: <SportsSoccerIcon /> },
           ].map((stat) => (
             <Grid size={{ xs: 12, sm: 6, lg: 3 }} key={stat.label}>
@@ -178,86 +203,113 @@ export default function Dashboard() {
           </Box>
         ) : (
           <Grid container spacing={3}>
-            {filteredEvents.map((item) => (
-              <Grid size={{ xs: 12, sm: 6, xl: 4 }} key={item.id}>
-                <Card
-                  sx={{
-                    height: "100%",
-                    display: "flex",
-                    flexDirection: "column",
-                    borderRadius: 3,
-                    overflow: "hidden",
-                    boxShadow: "0 4px 18px rgba(16,29,51,0.07)",
-                    transition: "transform 0.2s, box-shadow 0.2s",
-                    "&:hover": { transform: "translateY(-4px)", boxShadow: "0 10px 28px rgba(16,29,51,0.12)" },
-                  }}
-                >
-                  <CardContent sx={{ p: 2.5, display: "flex", flexDirection: "column", flexGrow: 1 }}>
-                    <Chip
-                      label={item.eventType}
-                      size="small"
-                      sx={{ alignSelf: "flex-start", mb: 1.5, fontWeight: 700 }}
-                    />
+            {filteredEvents.map((item) => {
+              const registered = registeredCounts[item.id] ?? 0;
+              const progress = item.numberOfTeams > 0
+                ? Math.min(100, Math.round((registered / item.numberOfTeams) * 100))
+                : 0;
 
-                    <Typography variant="h6" sx={{ fontWeight: 800, color: "#101D33", mb: 2 }}>
-                      {item.name}
-                    </Typography>
-
-                    <Box sx={{ display: "flex", gap: 1, mb: 1.5 }}>
-                      <CalendarMonthIcon fontSize="small" color="action" />
-                      <Typography variant="body2">{formatDate(item.startDate)}</Typography>
-                    </Box>
-
-                    <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
-                      <LocationOnOutlinedIcon fontSize="small" color="action" />
-                      <Typography variant="body2" color="text.secondary">{item.venue}</Typography>
-                    </Box>
-
-                    {item.ageGroups && (
-                      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2 }}>
-                        {item.ageGroups.split(",").map((age) => (
-                          <Chip key={age} label={age.trim()} size="small" variant="outlined" />
-                        ))}
-                      </Box>
-                    )}
-
-                    <Box sx={{ mt: "auto" }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>
-                        {item.numberOfTeams} teams · {item.numberOfPitches} pitches
-                      </Typography>
-
-                      <LinearProgress
-                        variant="determinate"
-                        value={100}
+              return (
+                <Grid size={{ xs: 12, sm: 6, xl: 4 }} key={item.id}>
+                  <Card
+                    sx={{
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      borderRadius: 3,
+                      overflow: "hidden",
+                      boxShadow: "0 4px 18px rgba(16,29,51,0.07)",
+                      transition: "transform 0.2s, box-shadow 0.2s",
+                      "&:hover": { transform: "translateY(-4px)", boxShadow: "0 10px 28px rgba(16,29,51,0.12)" },
+                    }}
+                  >
+                    <Box sx={{ position: "relative" }}>
+                      <CardMedia
+                        component="img"
+                        image={getSportImage(item.eventType)}
+                        alt={item.eventType}
+                        sx={{ height: 160, objectFit: "cover" }}
+                      />
+                      <Chip
+                        label={item.eventType}
+                        size="small"
                         sx={{
-                          height: 8,
-                          borderRadius: 5,
-                          mb: 2.5,
-                          bgcolor: "#E2E8F0",
-                          "& .MuiLinearProgress-bar": { bgcolor: "#079447", borderRadius: 5 },
+                          position: "absolute",
+                          top: 12,
+                          left: 12,
+                          fontWeight: 700,
+                          bgcolor: "rgba(255,255,255,0.9)",
+                          color: "#101D33",
                         }}
                       />
-
-                      <Button
-                        fullWidth
-                        variant="contained"
-                        onClick={() => navigate(`/events/${item.id}`)}
-                        sx={{
-                          bgcolor: "#079447",
-                          "&:hover": { bgcolor: "#06783A" },
-                          borderRadius: 2,
-                          py: 1.2,
-                          textTransform: "none",
-                          fontWeight: 700,
-                        }}
-                      >
-                        View Event →
-                      </Button>
                     </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
+
+                    <CardContent sx={{ p: 2.5, display: "flex", flexDirection: "column", flexGrow: 1 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 800, color: "#101D33", mb: 2 }}>
+                        {item.name}
+                      </Typography>
+
+                      <Box sx={{ display: "flex", gap: 1, mb: 1.5 }}>
+                        <CalendarMonthIcon fontSize="small" color="action" />
+                        <Typography variant="body2">{formatDate(item.startDate)}</Typography>
+                      </Box>
+
+                      <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
+                        <LocationOnOutlinedIcon fontSize="small" color="action" />
+                        <Typography variant="body2" color="text.secondary">{item.venue}</Typography>
+                      </Box>
+
+                      {item.ageGroups && (
+                        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2 }}>
+                          {item.ageGroups.split(",").map((age) => (
+                            <Chip key={age} label={age.trim()} size="small" variant="outlined" />
+                          ))}
+                        </Box>
+                      )}
+
+                      <Box sx={{ mt: "auto" }}>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                            {registered} / {item.numberOfTeams} teams registered
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {progress}%
+                          </Typography>
+                        </Box>
+
+                        <LinearProgress
+                          variant="determinate"
+                          value={progress}
+                          sx={{
+                            height: 8,
+                            borderRadius: 5,
+                            mb: 2.5,
+                            bgcolor: "#E2E8F0",
+                            "& .MuiLinearProgress-bar": { bgcolor: "#079447", borderRadius: 5 },
+                          }}
+                        />
+
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          onClick={() => navigate(`/events/${item.id}`)}
+                          sx={{
+                            bgcolor: "#079447",
+                            "&:hover": { bgcolor: "#06783A" },
+                            borderRadius: 2,
+                            py: 1.2,
+                            textTransform: "none",
+                            fontWeight: 700,
+                          }}
+                        >
+                          View Event →
+                        </Button>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
           </Grid>
         )}
 

@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 
 import {
+  Alert,
   Box,
+  Button,
   Card,
   CardContent,
   Chip,
   CircularProgress,
+  LinearProgress,
   MenuItem,
   Table,
   TableBody,
@@ -19,11 +22,13 @@ import {
 
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import LocationOnOutlinedIcon from "@mui/icons-material/LocationOnOutlined";
+import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
 
 import Sidebar from "../components/Sidebar";
 import {
   eventsApi,
   fixturesApi,
+  registrationsApi,
   teamsApi,
   type EventResponse,
   type FixtureResponse,
@@ -35,7 +40,10 @@ export default function Fixtures() {
   const [selectedEventId, setSelectedEventId] = useState<number | "">("");
   const [fixtures, setFixtures] = useState<FixtureResponse[]>([]);
   const [teams, setTeams] = useState<TeamResponse[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [registeredCount, setRegisteredCount] = useState(0);
+  const [loadingFixtures, setLoadingFixtures] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState("");
 
   useEffect(() => {
     Promise.all([eventsApi.list(), teamsApi.list()]).then(([evs, tms]) => {
@@ -47,19 +55,49 @@ export default function Fixtures() {
 
   useEffect(() => {
     if (selectedEventId === "") return;
-    setLoading(true);
-    fixturesApi
-      .getByEvent(selectedEventId)
-      .then(setFixtures)
-      .finally(() => setLoading(false));
+    setGenerateError("");
+
+    // fetch fixtures and registration count in parallel
+    setLoadingFixtures(true);
+    Promise.all([
+      fixturesApi.getByEvent(selectedEventId),
+      registrationsApi.getByEvent(selectedEventId),
+    ])
+      .then(([fx, regs]) => {
+        setFixtures(fx);
+        setRegisteredCount(regs.length);
+      })
+      .finally(() => setLoadingFixtures(false));
   }, [selectedEventId]);
+
+  const selectedEvent = events.find((e) => e.id === selectedEventId);
+  const isFull = selectedEvent ? registeredCount >= selectedEvent.numberOfTeams : false;
+  const progress = selectedEvent && selectedEvent.numberOfTeams > 0
+    ? Math.min(100, Math.round((registeredCount / selectedEvent.numberOfTeams) * 100))
+    : 0;
 
   const teamName = (id: number) =>
     teams.find((t) => t.id === id)?.name ?? `Team #${id}`;
 
-  const selectedEvent = events.find((e) => e.id === selectedEventId);
-
   const nextFixture = fixtures.find((f) => f.status !== "Completed");
+
+  const handleGenerate = async () => {
+    if (!selectedEvent || !isFull) return;
+    setGenerating(true);
+    setGenerateError("");
+    try {
+      const generated = await fixturesApi.generate(
+        selectedEvent.id,
+        1,
+        selectedEvent.startDate,
+      );
+      setFixtures(generated);
+    } catch (e: unknown) {
+      setGenerateError(e instanceof Error ? e.message : "Failed to generate fixtures.");
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const formatDateTime = (iso: string) =>
     new Date(iso).toLocaleString("en-ZA", {
@@ -71,14 +109,9 @@ export default function Fixtures() {
     });
 
   const formatTime = (iso: string) =>
-    new Date(iso).toLocaleTimeString("en-ZA", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    new Date(iso).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" });
 
-  const statusColor = (
-    status: string
-  ): "info" | "success" | "default" | "warning" => {
+  const statusColor = (status: string): "info" | "success" | "default" | "warning" => {
     switch (status.toLowerCase()) {
       case "completed": return "success";
       case "inprogress": return "warning";
@@ -117,31 +150,85 @@ export default function Fixtures() {
           )}
         </Box>
 
-        {/* Event Summary */}
+        {/* Event Summary + capacity */}
         {selectedEvent && (
           <Card sx={{ borderRadius: 3, mb: 3 }}>
             <CardContent sx={{ p: 3 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                <CalendarMonthIcon sx={{ fontSize: 40, color: "#079447" }} />
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                    {selectedEvent.name}
-                  </Typography>
-                  <Box sx={{ display: "flex", gap: 2, mt: 0.5, flexWrap: "wrap" }}>
-                    <Typography color="text.secondary" variant="body2">
-                      {selectedEvent.startDate}
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 2 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                  <CalendarMonthIcon sx={{ fontSize: 40, color: "#079447" }} />
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                      {selectedEvent.name}
                     </Typography>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <LocationOnOutlinedIcon fontSize="small" color="action" />
+                    <Box sx={{ display: "flex", gap: 2, mt: 0.5, flexWrap: "wrap" }}>
                       <Typography color="text.secondary" variant="body2">
-                        {selectedEvent.venue} · {selectedEvent.numberOfPitches} pitch{selectedEvent.numberOfPitches !== 1 ? "es" : ""}
+                        {selectedEvent.startDate}
                       </Typography>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                        <LocationOnOutlinedIcon fontSize="small" color="action" />
+                        <Typography color="text.secondary" variant="body2">
+                          {selectedEvent.venue} · {selectedEvent.numberOfPitches} pitch{selectedEvent.numberOfPitches !== 1 ? "es" : ""}
+                        </Typography>
+                      </Box>
                     </Box>
                   </Box>
                 </Box>
+
+                {/* Generate button */}
+                <Button
+                  variant="contained"
+                  startIcon={generating ? <CircularProgress size={16} color="inherit" /> : <AutoFixHighIcon />}
+                  disabled={!isFull || generating || fixtures.length > 0}
+                  onClick={handleGenerate}
+                  sx={{
+                    bgcolor: "#079447",
+                    "&:hover": { bgcolor: "#06783A" },
+                    "&.Mui-disabled": { bgcolor: "#E2E8F0", color: "#94A3B8" },
+                    textTransform: "none",
+                    fontWeight: 700,
+                    borderRadius: 2,
+                  }}
+                >
+                  {generating ? "Generating..." : fixtures.length > 0 ? "Fixtures Generated" : "Generate Fixtures"}
+                </Button>
+              </Box>
+
+              {/* Capacity progress */}
+              <Box sx={{ mt: 3 }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    Team Capacity
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {registeredCount} / {selectedEvent.numberOfTeams} registered
+                  </Typography>
+                </Box>
+                <LinearProgress
+                  variant="determinate"
+                  value={progress}
+                  sx={{
+                    height: 8,
+                    borderRadius: 5,
+                    bgcolor: "#E2E8F0",
+                    "& .MuiLinearProgress-bar": {
+                      bgcolor: isFull ? "#079447" : "#F59E0B",
+                      borderRadius: 5,
+                    },
+                  }}
+                />
+                {!isFull && (
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>
+                    {selectedEvent.numberOfTeams - registeredCount} more team{selectedEvent.numberOfTeams - registeredCount !== 1 ? "s" : ""} needed before fixtures can be generated.
+                  </Typography>
+                )}
               </Box>
             </CardContent>
           </Card>
+        )}
+
+        {generateError && (
+          <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>{generateError}</Alert>
         )}
 
         {/* Next Match */}
@@ -178,7 +265,7 @@ export default function Fixtures() {
         {/* Fixtures Table */}
         <Card sx={{ borderRadius: 3 }}>
           <CardContent sx={{ p: 0 }}>
-            {loading ? (
+            {loadingFixtures ? (
               <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
                 <CircularProgress />
               </Box>
@@ -199,9 +286,11 @@ export default function Fixtures() {
                     {fixtures.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} align="center" sx={{ py: 4, color: "text.secondary" }}>
-                          {selectedEventId === ""
+                          {!selectedEvent
                             ? "Select an event to view fixtures."
-                            : "No fixtures found for this event."}
+                            : !isFull
+                            ? "Tournament is not at full capacity — fixtures cannot be generated yet."
+                            : "No fixtures yet. Click \"Generate Fixtures\" to create the schedule."}
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -224,11 +313,7 @@ export default function Fixtures() {
                             </Typography>
                           </TableCell>
                           <TableCell>
-                            <Chip
-                              label={fixture.status}
-                              color={statusColor(fixture.status)}
-                              size="small"
-                            />
+                            <Chip label={fixture.status} color={statusColor(fixture.status)} size="small" />
                           </TableCell>
                         </TableRow>
                       ))
