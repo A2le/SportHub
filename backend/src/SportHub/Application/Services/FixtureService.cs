@@ -27,7 +27,7 @@ public class FixtureService
         this.teams = teams;
         this.whatsappService = whatsappService;
     }
-{
+
     public async Task<List<FixtureResponse>> GetByEventAsync(int eventId)
     {
         var fixtureList = await fixtures.GetByEventIdAsync(eventId);
