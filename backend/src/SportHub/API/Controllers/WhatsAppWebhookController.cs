@@ -105,7 +105,8 @@ public class WhatsAppWebhookController : ControllerBase
             // Handle initial commands
             var messageLower = userMessage.ToLower();
             
-            if (messageLower.Contains("register") || messageLower.Contains("sign up") || messageLower.Contains("join"))
+            // Check for explicit command keywords first
+            if (messageLower == "register" || messageLower == "sign up" || messageLower == "join")
             {
                 var events = await GetAvailableEventsAsync();
                 if (events.Any())
@@ -122,7 +123,7 @@ public class WhatsAppWebhookController : ControllerBase
                 }
                 return "I'm ready to help you register! However, there are no active events right now. Please check back later.";
             }
-            else if (messageLower.Contains("event") || messageLower.Contains("tournament"))
+            else if (messageLower == "events" || messageLower == "tournaments")
             {
                 var events = await GetAvailableEventsAsync();
                 if (events.Any())
@@ -132,7 +133,7 @@ public class WhatsAppWebhookController : ControllerBase
                 }
                 return "There are no active tournaments at the moment. Check back soon!";
             }
-            else if (messageLower.Contains("help") || messageLower.Contains("hi") || messageLower.Contains("hello"))
+            else if (messageLower == "help" || messageLower == "hi" || messageLower == "hello")
             {
                 return "👋 Welcome to SportHub! I'm your AI tournament assistant.\n\n" +
                        "I can help you:\n" +
@@ -161,7 +162,8 @@ public class WhatsAppWebhookController : ControllerBase
             }
             else
             {
-                // Try Knowledge Base for general questions
+                // Try Knowledge Base for general questions about rules, FAQs, etc.
+                _logger.LogInformation("Querying Knowledge Base for: {Question}", userMessage);
                 var kbResponse = await QueryKnowledgeBaseAsync(userMessage);
                 if (!string.IsNullOrEmpty(kbResponse))
                 {
@@ -172,8 +174,8 @@ public class WhatsAppWebhookController : ControllerBase
                        "• *register* - Start registration\n" +
                        "• *events* - View tournaments\n" +
                        "• *fixtures* - Check fixtures\n" +
-                       "• *rules* - Ask about rules\n\n" +
-                       "Try asking: 'What are the tournament rules?' or 'How do I register?'";
+                       "• Ask questions like: 'What are the rules?' or 'How much is the fee?'\n\n" +
+                       "What would you like to know?";
             }
         }
         catch (Exception ex)
