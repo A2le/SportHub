@@ -79,6 +79,11 @@ body {
   background: #f3f6fa;
 }
 
+#root {
+  max-width: none;
+  padding: 0;
+}
+
 * {
   box-sizing: border-box;
 }
