@@ -73,17 +73,84 @@ public class WhatsAppWebhookController : ControllerBase
     {
         try
         {
-            // For now, return a simple response while we fix authentication
             _logger.LogInformation("Processing message: {Message}", userMessage);
             
-            return $"Hello! I received your message: '{userMessage}'. I'm the SportHub AI assistant. " +
-                   "I can help you register teams for tournaments. " +
-                   "(Note: Full AI integration is being configured)";
+            // Simple keyword-based routing to demonstrate the integration
+            var messageLower = userMessage.ToLower();
+            
+            if (messageLower.Contains("register") || messageLower.Contains("sign up") || messageLower.Contains("join"))
+            {
+                // Get available events
+                var events = await GetAvailableEventsAsync();
+                if (events.Any())
+                {
+                    var eventList = string.Join("\n", events.Select((e, i) => $"{i + 1}. {e.Name} - {e.Sport} ({e.StartDate:MMM dd})"));
+                    return $"Great! I can help you register your team. Here are the available tournaments:\n\n{eventList}\n\nPlease reply with the event name you want to register for.";
+                }
+                return "I'm ready to help you register! However, there are no active events right now. Please check back later.";
+            }
+            else if (messageLower.Contains("event") || messageLower.Contains("tournament"))
+            {
+                var events = await GetAvailableEventsAsync();
+                if (events.Any())
+                {
+                    var eventList = string.Join("\n", events.Select(e => $"• {e.Name} - {e.Sport} on {e.StartDate:MMM dd, yyyy}"));
+                    return $"📅 Here are the upcoming tournaments:\n\n{eventList}\n\nWould you like to register your team for any of these?";
+                }
+                return "There are no active tournaments at the moment. Check back soon!";
+            }
+            else if (messageLower.Contains("help") || messageLower.Contains("hi") || messageLower.Contains("hello"))
+            {
+                return "👋 Welcome to SportHub! I'm your AI tournament assistant.\n\n" +
+                       "I can help you:\n" +
+                       "• Register teams for tournaments\n" +
+                       "• View available events\n" +
+                       "• Check fixtures and schedules\n\n" +
+                       "Just tell me what you need!";
+            }
+            else
+            {
+                return $"I received: '{userMessage}'\n\n" +
+                       "I can help you register teams for tournaments. Try saying:\n" +
+                       "• 'I want to register my team'\n" +
+                       "• 'Show me available events'\n" +
+                       "• 'Help'";
+            }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing message");
             return "I'm having trouble right now. Please try again.";
+        }
+    }
+
+    private async Task<List<EventInfo>> GetAvailableEventsAsync()
+    {
+        try
+        {
+            var httpClient = _httpClientFactory.CreateClient();
+            var apiUrl = _configuration["API:BaseUrl"] ?? "https://sporthub-rng4.onrender.com";
+            
+            var response = await httpClient.GetAsync($"{apiUrl}/Events");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                var events = JsonSerializer.Deserialize<List<EventInfo>>(json, new JsonSerializerOptions 
+                { 
+                    PropertyNameCaseInsensitive = true 
+                });
+                
+                // Only return future events
+                return events?.Where(e => e.StartDate >= DateTime.Today).ToList() ?? new List<EventInfo>();
+            }
+            
+            return new List<EventInfo>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching events");
+            return new List<EventInfo>();
         }
     }
 
@@ -106,4 +173,13 @@ public class TwilioWebhookRequest
     public string Body { get; set; } = string.Empty;
     public int NumMedia { get; set; }
     public string ProfileName { get; set; } = string.Empty;
+}
+
+public class EventInfo
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Sport { get; set; } = string.Empty;
+    public DateTime StartDate { get; set; }
+    public DateTime EndDate { get; set; }
 }
