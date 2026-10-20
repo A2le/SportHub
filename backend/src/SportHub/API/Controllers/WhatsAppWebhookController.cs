@@ -4,6 +4,8 @@ using SportHub.Application.DTOs;
 using System.Text;
 using System.Text.Json;
 using System.Collections.Concurrent;
+using Amazon.BedrockAgentRuntime;
+using Amazon.BedrockAgentRuntime.Model;
 
 namespace SportHub.API.Controllers;
 
@@ -15,6 +17,7 @@ public class WhatsAppWebhookController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly ILogger<WhatsAppWebhookController> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IAmazonBedrockAgentRuntime _bedrockRuntime;
     
     // In-memory session storage (for production, use Redis or database)
     private static readonly ConcurrentDictionary<string, UserSession> _sessions = new();
@@ -23,12 +26,14 @@ public class WhatsAppWebhookController : ControllerBase
         TwilioWhatsAppService whatsappService,
         IConfiguration configuration,
         ILogger<WhatsAppWebhookController> logger,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        IAmazonBedrockAgentRuntime bedrockRuntime)
     {
         _whatsappService = whatsappService;
         _configuration = configuration;
         _logger = logger;
         _httpClientFactory = httpClientFactory;
+        _bedrockRuntime = bedrockRuntime;
     }
 
     [HttpPost("webhook")]
@@ -134,8 +139,9 @@ public class WhatsAppWebhookController : ControllerBase
                        "• *register* - Register your team\n" +
                        "• *events* - View tournaments\n" +
                        "• *fixtures* - Check your fixtures\n" +
+                       "• *rules* - Tournament rules & FAQs\n" +
                        "• *help* - Show this menu\n\n" +
-                       "What would you like to do?";
+                       "Ask me anything about tournaments!";
             }
             else if (messageLower.Contains("fixture"))
             {
@@ -155,12 +161,19 @@ public class WhatsAppWebhookController : ControllerBase
             }
             else
             {
-                return "I can help you register teams for tournaments!\n\n" +
-                       "Try:\n" +
+                // Try Knowledge Base for general questions
+                var kbResponse = await QueryKnowledgeBaseAsync(userMessage);
+                if (!string.IsNullOrEmpty(kbResponse))
+                {
+                    return kbResponse;
+                }
+                
+                return "I can help you with:\n\n" +
                        "• *register* - Start registration\n" +
                        "• *events* - View tournaments\n" +
                        "• *fixtures* - Check fixtures\n" +
-                       "• *help* - See all options";
+                       "• *rules* - Ask about rules\n\n" +
+                       "Try asking: 'What are the tournament rules?' or 'How do I register?'";
             }
         }
         catch (Exception ex)
@@ -368,6 +381,45 @@ public class WhatsAppWebhookController : ControllerBase
         {
             _logger.LogError(ex, "Error fetching events");
             return new List<EventInfo>();
+        }
+    }
+
+    private async Task<string> QueryKnowledgeBaseAsync(string question)
+    {
+        try
+        {
+            var knowledgeBaseId = _configuration["AWS:KnowledgeBaseId"] ?? "TBJIAEAUKM";
+            
+            var request = new RetrieveAndGenerateRequest
+            {
+                Input = new RetrieveAndGenerateInput
+                {
+                    Text = question
+                },
+                RetrieveAndGenerateConfiguration = new RetrieveAndGenerateConfiguration
+                {
+                    Type = RetrieveAndGenerateType.KNOWLEDGE_BASE,
+                    KnowledgeBaseConfiguration = new KnowledgeBaseRetrieveAndGenerateConfiguration
+                    {
+                        KnowledgeBaseId = knowledgeBaseId,
+                        ModelArn = "arn:aws:bedrock:eu-west-1::foundation-model/amazon.titan-text-express-v1"
+                    }
+                }
+            };
+
+            var response = await _bedrockRuntime.RetrieveAndGenerateAsync(request);
+            
+            if (response?.Output?.Text != null)
+            {
+                return $"💡 {response.Output.Text}";
+            }
+            
+            return string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error querying Knowledge Base");
+            return string.Empty;
         }
     }
 
