@@ -4,6 +4,8 @@ using SportHub.Application.DTOs;
 using System.Text;
 using System.Text.Json;
 using System.Collections.Concurrent;
+using Amazon.BedrockAgentRuntime;
+using Amazon.BedrockAgentRuntime.Model;
 
 namespace SportHub.API.Controllers;
 
@@ -15,6 +17,7 @@ public class WhatsAppWebhookController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly ILogger<WhatsAppWebhookController> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IAmazonBedrockAgentRuntime _bedrockRuntime;
     
     // In-memory session storage (for production, use Redis or database)
     private static readonly ConcurrentDictionary<string, UserSession> _sessions = new();
@@ -23,12 +26,14 @@ public class WhatsAppWebhookController : ControllerBase
         TwilioWhatsAppService whatsappService,
         IConfiguration configuration,
         ILogger<WhatsAppWebhookController> logger,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        IAmazonBedrockAgentRuntime bedrockRuntime)
     {
         _whatsappService = whatsappService;
         _configuration = configuration;
         _logger = logger;
         _httpClientFactory = httpClientFactory;
+        _bedrockRuntime = bedrockRuntime;
     }
 
     [HttpPost("webhook")]
@@ -100,7 +105,8 @@ public class WhatsAppWebhookController : ControllerBase
             // Handle initial commands
             var messageLower = userMessage.ToLower();
             
-            if (messageLower.Contains("register") || messageLower.Contains("sign up") || messageLower.Contains("join"))
+            // Check for explicit command keywords first
+            if (messageLower == "register" || messageLower == "sign up" || messageLower == "join")
             {
                 var events = await GetAvailableEventsAsync();
                 if (events.Any())
@@ -117,7 +123,7 @@ public class WhatsAppWebhookController : ControllerBase
                 }
                 return "I'm ready to help you register! However, there are no active events right now. Please check back later.";
             }
-            else if (messageLower.Contains("event") || messageLower.Contains("tournament"))
+            else if (messageLower == "events" || messageLower == "tournaments")
             {
                 var events = await GetAvailableEventsAsync();
                 if (events.Any())
@@ -127,15 +133,16 @@ public class WhatsAppWebhookController : ControllerBase
                 }
                 return "There are no active tournaments at the moment. Check back soon!";
             }
-            else if (messageLower.Contains("help") || messageLower.Contains("hi") || messageLower.Contains("hello"))
+            else if (messageLower == "help" || messageLower == "hi" || messageLower == "hello")
             {
                 return "👋 Welcome to SportHub! I'm your AI tournament assistant.\n\n" +
                        "I can help you:\n" +
                        "• *register* - Register your team\n" +
                        "• *events* - View tournaments\n" +
                        "• *fixtures* - Check your fixtures\n" +
+                       "• *rules* - Tournament rules & FAQs\n" +
                        "• *help* - Show this menu\n\n" +
-                       "What would you like to do?";
+                       "Ask me anything about tournaments!";
             }
             else if (messageLower.Contains("fixture"))
             {
@@ -155,12 +162,20 @@ public class WhatsAppWebhookController : ControllerBase
             }
             else
             {
-                return "I can help you register teams for tournaments!\n\n" +
-                       "Try:\n" +
+                // Try Knowledge Base for general questions about rules, FAQs, etc.
+                _logger.LogInformation("Querying Knowledge Base for: {Question}", userMessage);
+                var kbResponse = await QueryKnowledgeBaseAsync(userMessage);
+                if (!string.IsNullOrEmpty(kbResponse))
+                {
+                    return kbResponse;
+                }
+                
+                return "I can help you with:\n\n" +
                        "• *register* - Start registration\n" +
                        "• *events* - View tournaments\n" +
                        "• *fixtures* - Check fixtures\n" +
-                       "• *help* - See all options";
+                       "• Ask questions like: 'What are the rules?' or 'How much is the fee?'\n\n" +
+                       "What would you like to know?";
             }
         }
         catch (Exception ex)
@@ -368,6 +383,45 @@ public class WhatsAppWebhookController : ControllerBase
         {
             _logger.LogError(ex, "Error fetching events");
             return new List<EventInfo>();
+        }
+    }
+
+    private async Task<string> QueryKnowledgeBaseAsync(string question)
+    {
+        try
+        {
+            var knowledgeBaseId = _configuration["AWS:KnowledgeBaseId"] ?? "TBJIAEAUKM";
+            
+            var request = new RetrieveAndGenerateRequest
+            {
+                Input = new RetrieveAndGenerateInput
+                {
+                    Text = question
+                },
+                RetrieveAndGenerateConfiguration = new RetrieveAndGenerateConfiguration
+                {
+                    Type = RetrieveAndGenerateType.KNOWLEDGE_BASE,
+                    KnowledgeBaseConfiguration = new KnowledgeBaseRetrieveAndGenerateConfiguration
+                    {
+                        KnowledgeBaseId = knowledgeBaseId,
+                        ModelArn = "arn:aws:bedrock:eu-west-1::foundation-model/amazon.titan-text-express-v1"
+                    }
+                }
+            };
+
+            var response = await _bedrockRuntime.RetrieveAndGenerateAsync(request);
+            
+            if (response?.Output?.Text != null)
+            {
+                return $"💡 {response.Output.Text}";
+            }
+            
+            return string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error querying Knowledge Base");
+            return string.Empty;
         }
     }
 
