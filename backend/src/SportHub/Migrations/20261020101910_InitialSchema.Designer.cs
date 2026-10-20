@@ -12,8 +12,8 @@ using SportHub.Infrastructure.Data;
 namespace SportHub.Migrations
 {
     [DbContext(typeof(SportHubDbContext))]
-    [Migration("20261015100835_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20261020101910_InitialSchema")]
+    partial class InitialSchema
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -114,12 +114,15 @@ namespace SportHub.Migrations
                     b.Property<int>("MatchDurationMinutes")
                         .HasColumnType("int");
 
+                    b.Property<int>("MaxMatchesPerTeam")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MinRestTimeBetweenMatches")
+                        .HasColumnType("int");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("longtext");
-
-                    b.Property<int>("NumberOfPitches")
-                        .HasColumnType("int");
 
                     b.Property<int>("NumberOfTeams")
                         .HasColumnType("int");
@@ -129,6 +132,10 @@ namespace SportHub.Migrations
                         .HasColumnType("longtext");
 
                     b.Property<string>("PitchStartTime")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("SportCategory")
                         .IsRequired()
                         .HasColumnType("longtext");
 
@@ -146,7 +153,7 @@ namespace SportHub.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Events");
+                    b.ToTable("events", (string)null);
                 });
 
             modelBuilder.Entity("SportHub.Domain.Entities.Fixture", b =>
@@ -166,11 +173,12 @@ namespace SportHub.Migrations
                     b.Property<int>("HomeTeamId")
                         .HasColumnType("int");
 
+                    b.Property<string>("KickOffTime")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
                     b.Property<int>("PitchId")
                         .HasColumnType("int");
-
-                    b.Property<DateTime>("ScheduledAt")
-                        .HasColumnType("datetime(6)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -182,7 +190,7 @@ namespace SportHub.Migrations
 
                     b.HasIndex("HomeTeamId");
 
-                    b.ToTable("Fixtures");
+                    b.ToTable("fixtures", (string)null);
                 });
 
             modelBuilder.Entity("SportHub.Domain.Entities.Notification", b =>
@@ -212,7 +220,7 @@ namespace SportHub.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Notifications");
+                    b.ToTable("notifications", (string)null);
                 });
 
             modelBuilder.Entity("SportHub.Domain.Entities.Pitch", b =>
@@ -247,6 +255,14 @@ namespace SportHub.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("AgeGroup")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Division")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
                     b.Property<int>("EventId")
                         .HasColumnType("int");
 
@@ -265,7 +281,7 @@ namespace SportHub.Migrations
                     b.HasIndex("EventId", "TeamId")
                         .IsUnique();
 
-                    b.ToTable("Registrations");
+                    b.ToTable("registrations", (string)null);
                 });
 
             modelBuilder.Entity("SportHub.Domain.Entities.Team", b =>
@@ -277,6 +293,10 @@ namespace SportHub.Migrations
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("AgeGroup")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("CoachEmail")
                         .IsRequired()
                         .HasColumnType("longtext");
 
@@ -301,7 +321,7 @@ namespace SportHub.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Teams");
+                    b.ToTable("teams", (string)null);
                 });
 
             modelBuilder.Entity("SportHub.Domain.Entities.Fixture", b =>
