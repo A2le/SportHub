@@ -270,7 +270,9 @@ public class WhatsAppWebhookController : ControllerBase
             var registrationDto = new
             {
                 eventId = session.SelectedEvent?.Id,
-                teamId = teamData?.Id
+                teamId = teamData?.Id,
+                ageGroup = session.AgeGroup,
+                division = "" // Optional
             };
 
             var regJson = JsonSerializer.Serialize(registrationDto);
