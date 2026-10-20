@@ -444,19 +444,45 @@ public class WhatsAppWebhookController : ControllerBase
                        "• Equipment: Jerseys, shin guards\n\n" +
                        "For full details, contact tournaments@sporthub.com";
             }
-            else if (questionLower.Contains("fee") || questionLower.Contains("cost"))
+            else if (questionLower.Contains("fee") || questionLower.Contains("cost") || questionLower.Contains("price"))
             {
                 return "💰 **Registration Fee**: R500 per team\n" +
                        "Late registration (< 7 days): Additional R200\n\n" +
                        "Payment via bank transfer or cash on day.";
             }
-            else if (questionLower.Contains("time") || questionLower.Contains("duration"))
+            else if (questionLower.Contains("time") || questionLower.Contains("duration") || 
+                     questionLower.Contains("long") || questionLower.Contains("match"))
             {
                 return "⏱️ **Match Duration**:\n" +
                        "• U11, U13: 2 x 25 minutes\n" +
                        "• U15, U17: 2 x 30 minutes\n" +
                        "• U19, Senior: 2 x 40 minutes\n\n" +
                        "Minimum 60 minutes rest between matches.";
+            }
+            else if (questionLower.Contains("equipment") || questionLower.Contains("need") || questionLower.Contains("bring"))
+            {
+                return "⚽ **Required Equipment**:\n" +
+                       "• Matching team jerseys with numbers\n" +
+                       "• Shin guards (mandatory)\n" +
+                       "• Proper football boots\n" +
+                       "• No metal studs on artificial turf\n\n" +
+                       "Bring water and snacks!";
+            }
+            else if (questionLower.Contains("rain") || questionLower.Contains("weather"))
+            {
+                return "🌧️ **Weather Policy**:\n" +
+                       "• Matches continue in rain unless pitch unsafe\n" +
+                       "• Lightning: Immediate suspension\n" +
+                       "• Extreme heat: Water breaks every 20 min\n\n" +
+                       "Bring waterproof gear just in case!";
+            }
+            else if (questionLower.Contains("medal") || questionLower.Contains("trophy") || questionLower.Contains("prize"))
+            {
+                return "🏆 **Awards**:\n" +
+                       "• Winners: Medals + Trophy\n" +
+                       "• Runners-up: Medals\n" +
+                       "• All participants: Certificates\n\n" +
+                       "Presentation after final match!";
             }
             
             return string.Empty;
