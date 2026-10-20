@@ -6,7 +6,27 @@ using SportHub.Domain.Entities;
 
 namespace SportHub.Application.Services;
 
-public class FixtureService(IFixtureRepository fixtures, IRegistrationRepository registrations, IEventRepository events, ITeamRepository teams)
+public class FixtureService
+{
+    private readonly IFixtureRepository fixtures;
+    private readonly IRegistrationRepository registrations;
+    private readonly IEventRepository events;
+    private readonly ITeamRepository teams;
+    private readonly TwilioWhatsAppService? whatsappService; // Optional dependency
+
+    public FixtureService(
+        IFixtureRepository fixtures,
+        IRegistrationRepository registrations,
+        IEventRepository events,
+        ITeamRepository teams,
+        TwilioWhatsAppService? whatsappService = null) // Make optional
+    {
+        this.fixtures = fixtures;
+        this.registrations = registrations;
+        this.events = events;
+        this.teams = teams;
+        this.whatsappService = whatsappService;
+    }
 {
     public async Task<List<FixtureResponse>> GetByEventAsync(int eventId)
     {
@@ -66,8 +86,67 @@ public class FixtureService(IFixtureRepository fixtures, IRegistrationRepository
             await fixtures.SaveAsync(fixture);
         }
 
+        // 7. Send WhatsApp notifications to all registered coaches
+        if (whatsappService != null)
+        {
+            _ = Task.Run(async () => await SendFixtureNotificationsAsync(generated, teamList, ev));
+        }
 
         return generated.Select(f => ToResponse(f, teamList, regs)).ToList();
+    }
+
+    private async Task SendFixtureNotificationsAsync(List<Fixture> fixtureList, List<Team> teamList, Event ev)
+    {
+        try
+        {
+            // Group fixtures by team
+            var teamFixtures = new Dictionary<int, List<Fixture>>();
+            
+            foreach (var fixture in fixtureList)
+            {
+                if (!teamFixtures.ContainsKey(fixture.HomeTeamId))
+                    teamFixtures[fixture.HomeTeamId] = new List<Fixture>();
+                if (!teamFixtures.ContainsKey(fixture.AwayTeamId))
+                    teamFixtures[fixture.AwayTeamId] = new List<Fixture>();
+                
+                teamFixtures[fixture.HomeTeamId].Add(fixture);
+                teamFixtures[fixture.AwayTeamId].Add(fixture);
+            }
+
+            // Send notification to each coach
+            foreach (var (teamId, teamFixtureList) in teamFixtures)
+            {
+                var team = teamList.FirstOrDefault(t => t.Id == teamId);
+                if (team == null || string.IsNullOrEmpty(team.CoachPhone))
+                    continue;
+
+                var fixtureDetails = string.Join("\n\n", teamFixtureList.Select(f =>
+                {
+                    var opponent = f.HomeTeamId == teamId
+                        ? teamList.FirstOrDefault(t => t.Id == f.AwayTeamId)?.Name ?? "TBD"
+                        : teamList.FirstOrDefault(t => t.Id == f.HomeTeamId)?.Name ?? "TBD";
+                    
+                    var homeOrAway = f.HomeTeamId == teamId ? "vs" : "@";
+                    
+                    return $"⚽ {homeOrAway} {opponent}\n⏰ {f.KickOffTime}";
+                }));
+
+                var message = $"🏆 *Fixtures Released!*\n\n" +
+                             $"Event: {ev.Name}\n" +
+                             $"Team: {team.Name}\n\n" +
+                             $"{fixtureDetails}\n\n" +
+                             $"Good luck! 💪";
+
+                await whatsappService!.SendMessageAsync(team.CoachPhone, message);
+                
+                // Add small delay to avoid rate limiting
+                await Task.Delay(1000);
+            }
+        }
+        catch (Exception)
+        {
+            // Silent failure - don't break fixture generation if WhatsApp fails
+        }
     }
 
     private async Task<List<Fixture>> GenerateSmartFixtures(Dictionary<string, List<int>> teamsByAgeAndDivision, Event ev, int pitchId)

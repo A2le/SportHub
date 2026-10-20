@@ -133,8 +133,25 @@ public class WhatsAppWebhookController : ControllerBase
                        "I can help you:\n" +
                        "• *register* - Register your team\n" +
                        "• *events* - View tournaments\n" +
+                       "• *fixtures* - Check your fixtures\n" +
                        "• *help* - Show this menu\n\n" +
                        "What would you like to do?";
+            }
+            else if (messageLower.Contains("fixture"))
+            {
+                // Query fixtures
+                var fixtures = await GetUserFixturesAsync(userId);
+                if (fixtures.Any())
+                {
+                    var fixtureList = string.Join("\n\n", fixtures.Select(f => 
+                        $"🏆 *{f.EventName}*\n" +
+                        $"📅 {f.MatchDate:MMM dd, yyyy} at {f.MatchTime}\n" +
+                        $"⚽ {f.HomeTeam} vs {f.AwayTeam}\n" +
+                        $"📍 {f.Pitch}"));
+                    
+                    return $"📋 *Your Upcoming Fixtures*\n\n{fixtureList}";
+                }
+                return "You don't have any fixtures yet. Register your team first!";
             }
             else
             {
@@ -142,6 +159,7 @@ public class WhatsAppWebhookController : ControllerBase
                        "Try:\n" +
                        "• *register* - Start registration\n" +
                        "• *events* - View tournaments\n" +
+                       "• *fixtures* - Check fixtures\n" +
                        "• *help* - See all options";
             }
         }
@@ -353,6 +371,74 @@ public class WhatsAppWebhookController : ControllerBase
         }
     }
 
+    private async Task<List<FixtureInfo>> GetUserFixturesAsync(string userId)
+    {
+        try
+        {
+            var httpClient = _httpClientFactory.CreateClient();
+            var apiUrl = _configuration["API:BaseUrl"] ?? "https://sporthub-rng4.onrender.com";
+            var phoneNumber = userId.Replace("whatsapp:", "");
+            
+            // Get all fixtures and filter by coach phone
+            // First, get teams registered with this phone number
+            var teamsResponse = await httpClient.GetAsync($"{apiUrl}/Teams");
+            
+            if (!teamsResponse.IsSuccessStatusCode)
+            {
+                return new List<FixtureInfo>();
+            }
+
+            var teamsJson = await teamsResponse.Content.ReadAsStringAsync();
+            var allTeams = JsonSerializer.Deserialize<List<TeamInfo>>(teamsJson, new JsonSerializerOptions 
+            { 
+                PropertyNameCaseInsensitive = true 
+            }) ?? new List<TeamInfo>();
+
+            // Find teams with this phone number
+            var userTeams = allTeams.Where(t => t.CoachPhone?.Replace("+", "").Replace(" ", "") == phoneNumber.Replace("+", "").Replace(" ", "")).ToList();
+            
+            if (!userTeams.Any())
+            {
+                return new List<FixtureInfo>();
+            }
+
+            // Get fixtures for these teams
+            var allFixtures = new List<FixtureInfo>();
+            
+            foreach (var team in userTeams)
+            {
+                var fixturesResponse = await httpClient.GetAsync($"{apiUrl}/Fixtures");
+                
+                if (fixturesResponse.IsSuccessStatusCode)
+                {
+                    var fixturesJson = await fixturesResponse.Content.ReadAsStringAsync();
+                    var fixtures = JsonSerializer.Deserialize<List<FixtureInfo>>(fixturesJson, new JsonSerializerOptions 
+                    { 
+                        PropertyNameCaseInsensitive = true 
+                    }) ?? new List<FixtureInfo>();
+
+                    // Filter fixtures where this team is playing
+                    var teamFixtures = fixtures.Where(f => 
+                        f.HomeTeam == team.Name || f.AwayTeam == team.Name).ToList();
+                    
+                    allFixtures.AddRange(teamFixtures);
+                }
+            }
+
+            // Return future fixtures only, sorted by date
+            return allFixtures
+                .Where(f => f.MatchDate >= DateTime.Today)
+                .OrderBy(f => f.MatchDate)
+                .ThenBy(f => f.MatchTime)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching user fixtures");
+            return new List<FixtureInfo>();
+        }
+    }
+
     [HttpGet("webhook")]
     public IActionResult VerifyWebhook()
     {
@@ -413,4 +499,22 @@ public enum RegistrationStep
     EnteringCoachName,
     EnteringCoachEmail,
     Confirming
+}
+
+public class TeamInfo
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string CoachPhone { get; set; } = string.Empty;
+}
+
+public class FixtureInfo
+{
+    public int Id { get; set; }
+    public string EventName { get; set; } = string.Empty;
+    public string HomeTeam { get; set; } = string.Empty;
+    public string AwayTeam { get; set; } = string.Empty;
+    public DateTime MatchDate { get; set; }
+    public string MatchTime { get; set; } = string.Empty;
+    public string Pitch { get; set; } = string.Empty;
 }
