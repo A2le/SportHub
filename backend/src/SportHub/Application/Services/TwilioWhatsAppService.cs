@@ -33,10 +33,16 @@ public class TwilioWhatsAppService
                 toPhoneNumber = $"whatsapp:{toPhoneNumber}";
             }
 
+            // Limit message length for WhatsApp (max 1600 chars)
+            if (messageBody.Length > 1600)
+            {
+                messageBody = messageBody.Substring(0, 1597) + "...";
+            }
+
             var message = await MessageResource.CreateAsync(
-                body: messageBody,
+                to: new PhoneNumber(toPhoneNumber),
                 from: new PhoneNumber(_whatsappFrom),
-                to: new PhoneNumber(toPhoneNumber)
+                body: messageBody
             );
 
             return message.Sid;
