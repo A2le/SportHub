@@ -54,6 +54,7 @@ import EventSelector from "../components/EventSelector";
 //import { getAgentEvents } from "../services/agentEventApi";
 import { getSportsHubEvents } from "../services/agentEventApi";
 //const EVENT_ID = Number(import.meta.env.VITE_EVENT_ID ?? 1);
+import { findTeamByName } from "../services/teamLookupApi";
 const MAIN_MENU: QuickReply[] = [
   { label: "Register Team", value: "register" },
   { label: "Event Info", value: "event info" },
@@ -87,7 +88,7 @@ export default function CoachChatPage() {
   const [eventLoading, setEventLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [awaitingFixtureTeamId, setAwaitingFixtureTeamId] = useState(false);
+  const [awaitingFixtureTeamName, setAwaitingFixtureTeamName] = useState(false);
   const [status, setStatus] = useState<RegistrationStatus>("idle");
 
   const [draft, setDraft] = useState<Registration | null>(null);
@@ -168,7 +169,7 @@ export default function CoachChatPage() {
 
     setStatus("idle");
     setDraft(null);
-    setAwaitingFixtureTeamId(false);
+    setAwaitingFixtureTeamName(false);
     setEventLoading(false);
   }; */
 
@@ -187,7 +188,7 @@ export default function CoachChatPage() {
 
       setDraft(null);
       setStatus("idle");
-      setAwaitingFixtureTeamId(false);
+      setAwaitingFixtureTeamName(false);
       setMessages([]);
 
       // Set chosen event
@@ -268,49 +269,59 @@ export default function CoachChatPage() {
 
         return;
       }
-      if (awaitingFixtureTeamId) {
+
+      if (awaitingFixtureTeamName) {
         if (input === "cancel") {
-          setAwaitingFixtureTeamId(false);
+          setAwaitingFixtureTeamName(false);
 
-          addAssistantMessage("No problem! What would you like to do next?", {
-            quickReplies: MAIN_MENU,
-          });
-
-          return;
-        }
-
-        const teamId = Number(input);
-
-        if (!Number.isSafeInteger(teamId) || teamId <= 0) {
-          addAssistantMessage("Please enter a valid numeric team ID.", {
-            quickReplies: [{ label: "Cancel", value: "cancel" }],
-          });
+          addAssistantMessage(
+            "Fixture lookup cancelled. What would you like to do next?",
+            { quickReplies: MAIN_MENU },
+          );
 
           return;
         }
 
         try {
-          const result = await getTeamFixtures(teamId, event!.id);
+          const matches = await findTeamByName(event!.id, text.trim());
 
-          setAwaitingFixtureTeamId(false);
-
-          if (result.fixtures.length === 0) {
+          if (matches.length === 0) {
             addAssistantMessage(
-              "I couldn't find fixtures for this team yet. They may not have been generated.",
-              { quickReplies: MAIN_MENU },
-            );
-          } else {
-            addAssistantMessage(
-              `I found ${result.fixtureCount} fixtures for your team.`,
+              "I couldn't find that registered team. Please check the spelling and try again, or type cancel.",
               {
-                fixtures: result.fixtures,
-                quickReplies: MAIN_MENU,
+                quickReplies: [{ label: "Cancel", value: "cancel" }],
               },
             );
+            return;
           }
+
+          if (matches.length > 1) {
+            addAssistantMessage(
+              "Multiple registrations matched that team name. Please ask the organiser to confirm the correct registration.",
+              { quickReplies: [{ label: "Cancel", value: "cancel" }] },
+            );
+            return;
+          }
+
+          const team = matches[0];
+
+          // IMPORTANT: Use team.teamId, not team.id
+          const result = await getTeamFixtures(team.teamId, event!.id);
+
+          setAwaitingFixtureTeamName(false);
+
+          addAssistantMessage(
+            result.fixtures.length > 0
+              ? `I found ${result.fixtureCount} fixtures for ${team.teamName}.`
+              : `No fixtures are currently available for ${team.teamName}.`,
+            {
+              fixtures: result.fixtures,
+              quickReplies: MAIN_MENU,
+            },
+          );
         } catch {
           addAssistantMessage(
-            "I couldn't retrieve those fixtures. Please check the team ID and try again.",
+            "I couldn't retrieve the team information or fixtures. Please try again.",
             {
               quickReplies: [{ label: "Cancel", value: "cancel" }],
             },
@@ -344,10 +355,10 @@ export default function CoachChatPage() {
         }
 
         if (input === "fixtures" || input === "check fixtures") {
-          setAwaitingFixtureTeamId(true);
+          setAwaitingFixtureTeamName(true);
 
           addAssistantMessage(
-            "Sure! What is your team ID? You can also type cancel.",
+            "Sure! What's your registered team name? You can also type cancel.",
           );
 
           return;
@@ -615,7 +626,7 @@ export default function CoachChatPage() {
                   setMessages([]);
                   setDraft(null);
                   setStatus("idle");
-                  setAwaitingFixtureTeamId(false);
+                  setAwaitingFixtureTeamName(false);
                 }}
               >
                 Change Event
@@ -649,7 +660,7 @@ export default function CoachChatPage() {
                     setMessages([]);
                     setDraft(null);
                     setStatus("idle");
-                    setAwaitingFixtureTeamId(false);
+                    setAwaitingFixtureTeamName(false);
                   }}
                   sx={{
                     color: C.muted,
