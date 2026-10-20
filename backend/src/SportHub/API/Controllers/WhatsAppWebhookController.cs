@@ -1,6 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using Amazon.BedrockAgentRuntime;
-using Amazon.BedrockAgentRuntime.Model;
 using SportHub.Application.Services;
 using System.Text;
 using System.Text.Json;
@@ -38,39 +36,36 @@ public class WhatsAppWebhookController : ControllerBase
                 request.From, request.Body);
 
             // Extract phone number and message
-            var fromNumber = request.From;
             var userMessage = request.Body;
 
             if (string.IsNullOrWhiteSpace(userMessage))
             {
-                return Ok(); // Ignore empty messages
+                return Content("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response></Response>", "application/xml");
             }
 
             // Call Bedrock agent with the user's message
             var agentResponse = await InvokeBedrockAgentAsync(userMessage, request.From);
 
-            // Send response back via WhatsApp
-            await _whatsappService.SendMessageAsync(fromNumber, agentResponse);
+            // Return TwiML response directly (this way we don't need to send a separate message)
+            var twimlResponse = $@"<?xml version=""1.0"" encoding=""UTF-8""?>
+<Response>
+    <Message>{System.Security.SecurityElement.Escape(agentResponse)}</Message>
+</Response>";
 
-            _logger.LogInformation("Sent response to {From}", fromNumber);
+            _logger.LogInformation("Sending response to {From}", request.From);
 
-            // Return TwiML response (empty is fine, we already sent the message)
-            return Content("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response></Response>", "application/xml");
+            return Content(twimlResponse, "application/xml");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing WhatsApp webhook");
             
-            // Try to send error message to user
-            try
-            {
-                await _whatsappService.SendMessageAsync(
-                    request.From, 
-                    "Sorry, I encountered an error processing your request. Please try again later.");
-            }
-            catch { /* Ignore if error notification fails */ }
+            var errorResponse = @"<?xml version=""1.0"" encoding=""UTF-8""?>
+<Response>
+    <Message>Sorry, I encountered an error. Please try again later.</Message>
+</Response>";
 
-            return Content("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response></Response>", "application/xml");
+            return Content(errorResponse, "application/xml");
         }
     }
 
@@ -78,69 +73,17 @@ public class WhatsAppWebhookController : ControllerBase
     {
         try
         {
-            var gatewayUrl = _configuration["AWS:BedrockGatewayUrl"] 
-                ?? "https://sporthub-api-gateway-wzzk4w6ikw.gateway.bedrock-agentcore.eu-west-1.amazonaws.com/mcp";
-
-            var httpClient = _httpClientFactory.CreateClient();
+            // For now, return a simple response while we fix authentication
+            _logger.LogInformation("Processing message: {Message}", userMessage);
             
-            // Create session ID from phone number (remove special characters)
-            var sessionId = userId.Replace("whatsapp:", "").Replace("+", "").Replace(" ", "");
-            
-            // Prepare request payload for API Gateway
-            var requestPayload = new
-            {
-                method = "call_tool",
-                @params = new
-                {
-                    name = "ask_question",
-                    arguments = new
-                    {
-                        question = userMessage,
-                        session_id = sessionId
-                    }
-                }
-            };
-
-            var jsonContent = JsonSerializer.Serialize(requestPayload);
-            var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-
-            _logger.LogInformation("Calling Bedrock Gateway: {Url}", gatewayUrl);
-            
-            var response = await httpClient.PostAsync(gatewayUrl, content);
-            
-            if (!response.IsSuccessStatusCode)
-            {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                _logger.LogError("Bedrock Gateway error: {StatusCode} - {Error}", response.StatusCode, errorContent);
-                return "I'm having trouble connecting to my AI service. Please try again in a moment.";
-            }
-
-            var responseBody = await response.Content.ReadAsStringAsync();
-            _logger.LogInformation("Bedrock Gateway response: {Response}", responseBody);
-
-            // Parse response - adjust based on actual API Gateway response format
-            var responseJson = JsonDocument.Parse(responseBody);
-            
-            // Try to extract the text response - format may vary
-            if (responseJson.RootElement.TryGetProperty("content", out var contentArray))
-            {
-                if (contentArray.GetArrayLength() > 0)
-                {
-                    var firstContent = contentArray[0];
-                    if (firstContent.TryGetProperty("text", out var textElement))
-                    {
-                        return textElement.GetString() ?? "Sorry, I couldn't generate a response.";
-                    }
-                }
-            }
-            
-            // Fallback: return raw response if we can't parse it
-            return responseBody;
+            return $"Hello! I received your message: '{userMessage}'. I'm the SportHub AI assistant. " +
+                   "I can help you register teams for tournaments. " +
+                   "(Note: Full AI integration is being configured)";
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error invoking Bedrock gateway");
-            return "I'm having trouble processing your request right now. Please try again in a moment.";
+            _logger.LogError(ex, "Error processing message");
+            return "I'm having trouble right now. Please try again.";
         }
     }
 
