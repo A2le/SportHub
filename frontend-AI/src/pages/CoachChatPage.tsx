@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Box,
+  Button,
   CircularProgress,
   Container,
   Paper,
@@ -42,15 +43,17 @@ import { C } from "../theme/sportsHubTheme";
 //import RegistrationStatusCard from "../components/RegistrationStatusCard";
 //import EventDetailsCard from "../components/EventDetailsCard";
 //import TeamFixtureLookup from "../components/TeamFixtureLookup";
-
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { getTeamFixtures } from "../services/fixtureApi";
 //import { getAgentEventInfo } from "../services/agentEventApi";
 //import type { Fixture } from "../types/fixture";
 //import type { QuickReply } from "../types/chat";
 import type { TeamFixture } from "../types/fixture";
 import WhatsAppRegistrationButton from "../components/WhatsAppRegistrationButton";
-
-const EVENT_ID = Number(import.meta.env.VITE_EVENT_ID ?? 1);
+import EventSelector from "../components/EventSelector";
+//import { getAgentEvents } from "../services/agentEventApi";
+import { getSportsHubEvents } from "../services/agentEventApi";
+//const EVENT_ID = Number(import.meta.env.VITE_EVENT_ID ?? 1);
 const MAIN_MENU: QuickReply[] = [
   { label: "Register Team", value: "register" },
   { label: "Event Info", value: "event info" },
@@ -101,57 +104,110 @@ export default function CoachChatPage() {
       .map((age) => age.trim().toUpperCase().replace(/\s/g, ""))
       .filter(Boolean) ?? [];
 
-  useEffect(() => {
-    let active = true;
+  // useEffect(() => {
+  //   let active = true;
 
-    getAgentEventInfo(EVENT_ID)
-      .then((data) => {
-        if (!active) return;
+  //   getAgentEventInfo(EVENT_ID)
+  //     .then((data) => {
+  //       if (!active) return;
 
-        setEvent(data);
-        setMessages([
-          makeMessage(
-            "assistant",
-            `Hi! Welcome to ${data.name}. How can I help you today?`,
-            undefined,
-            MAIN_MENU,
-          ),
-        ]);
-      })
-      .catch((error: unknown) => {
-        if (!active) return;
+  //       setEvent(data);
+  //       setMessages([
+  //         makeMessage(
+  //           "assistant",
+  //           `Hi! Welcome to ${data.name}. How can I help you today?`,
+  //           undefined,
+  //           MAIN_MENU,
+  //         ),
+  //       ]);
+  //     })
+  //     .catch((error: unknown) => {
+  //       if (!active) return;
 
-        console.error("Failed to load event:", error);
+  //       console.error("Failed to load event:", error);
 
-        if (axios.isAxiosError(error)) {
-          const status = error.response?.status;
+  //       if (axios.isAxiosError(error)) {
+  //         const status = error.response?.status;
 
-          if (!error.response) {
-            setError(
-              "Cannot connect to the backend. Check your API URL, server and CORS settings.",
-            );
-          } else if (status === 404) {
-            setError(
-              `Event ${EVENT_ID} was not found, or the API route is incorrect.`,
-            );
-          } else if (status === 401 || status === 403) {
-            setError("You are not authorised to retrieve this event.");
-          } else {
-            setError(`Unable to load event. Server returned ${status}.`);
-          }
-        } else {
-          setError("An unexpected error occurred while loading the event.");
-        }
-      })
-      .finally(() => {
-        if (active) setEventLoading(false);
-      });
+  //         if (!error.response) {
+  //           setError(
+  //             "Cannot connect to the backend. Check your API URL, server and CORS settings.",
+  //           );
+  //         } else if (status === 404) {
+  //           setError(
+  //             `Event ${EVENT_ID} was not found, or the API route is incorrect.`,
+  //           );
+  //         } else if (status === 401 || status === 403) {
+  //           setError("You are not authorised to retrieve this event.");
+  //         } else {
+  //           setError(`Unable to load event. Server returned ${status}.`);
+  //         }
+  //       } else {
+  //         setError("An unexpected error occurred while loading the event.");
+  //       }
+  //     })
+  //     .finally(() => {
+  //       if (active) setEventLoading(false);
+  //     });
 
-    return () => {
-      active = false;
-    };
-  }, []);
+  //   return () => {
+  //     active = false;
+  //   };
+  // }, []);
 
+  /* const handleSelectEvent = (selected: AgentEventInfo) => {
+    setEvent(selected);
+    setMessages([
+      makeMessage(
+        "assistant",
+        `Welcome to ${selected.name}! What would you like to do?`,
+        undefined,
+        MAIN_MENU,
+      ),
+    ]);
+
+    setStatus("idle");
+    setDraft(null);
+    setAwaitingFixtureTeamId(false);
+    setEventLoading(false);
+  }; */
+
+  const handleSelectEvent = async (eventId: number) => {
+    try {
+      setError(null);
+      setEventLoading(true);
+
+      const selectedEvent = await getAgentEventInfo(eventId);
+
+      // Reset previous conversation
+      resetMockConversation(conversationId);
+
+      //const newConversationId = crypto.randomUUID();
+      //setConversationId(newConversationId);
+
+      setDraft(null);
+      setStatus("idle");
+      setAwaitingFixtureTeamId(false);
+      setMessages([]);
+
+      // Set chosen event
+      setEvent(selectedEvent);
+
+      // Show AI welcome message
+      setMessages([
+        makeMessage(
+          "assistant",
+          `Welcome to ${selectedEvent.name}! How can I help you today?`,
+          undefined,
+          MAIN_MENU,
+        ),
+      ]);
+    } catch {
+      setError("Unable to open the selected event.");
+    } finally {
+      setEventLoading(false);
+    }
+  };
   useEffect(() => {
     bottomRef.current?.scrollIntoView({
       behavior: "smooth",
@@ -410,6 +466,31 @@ export default function CoachChatPage() {
     await handleSend("cancel");
   };
 
+  if (!event) {
+    return (
+      <Box
+        sx={{
+          height: "100dvh",
+          display: "flex",
+          flexDirection: "column",
+          bgcolor: C.background,
+        }}
+      >
+        <SportsHubHeader />
+
+        {error && (
+          <Alert severity="error" sx={{ m: 2 }}>
+            {error}
+          </Alert>
+        )}
+
+        <EventSelector
+          loadEvents={getSportsHubEvents}
+          onSelect={handleSelectEvent}
+        />
+      </Box>
+    );
+  }
   return (
     <Box
       sx={{
@@ -449,87 +530,143 @@ export default function CoachChatPage() {
             },
           }}
         >
-          
-{/* Chat header */}
-<Box
-  sx={{
-    px: { xs: 2, sm: 3 },
-    py: 2,
-    bgcolor: C.white,
-    borderBottom: `1px solid ${C.border}`,
-  }}
->
-  <Stack spacing={2}>
-    {/* Assistant information */}
-    <Stack
-      direction="row"
-      spacing={1.5}
-      sx={{alignItems:"center"}}
-    >
-      <Avatar
-        sx={{
-          width: 44,
-          height: 44,
-          bgcolor: C.greenLight,
-          color: C.green,
-          borderRadius: 2,
-          flexShrink: 0,
-        }}
-      >
-        <SmartToyOutlinedIcon />
-      </Avatar>
+          {/* Chat header */}
+          <Box
+            sx={{
+              px: { xs: 2, sm: 3 },
+              py: 2,
+              bgcolor: C.white,
+              borderBottom: `1px solid ${C.border}`,
+            }}
+          >
+            <Stack spacing={2}>
+              {/* Assistant information */}
+              <Stack
+                direction="row"
+                spacing={1.5}
+                sx={{ alignItems: "center" }}
+              >
+                <Avatar
+                  sx={{
+                    width: 44,
+                    height: 44,
+                    bgcolor: C.greenLight,
+                    color: C.green,
+                    borderRadius: 2,
+                    flexShrink: 0,
+                  }}
+                >
+                  <SmartToyOutlinedIcon />
+                </Avatar>
 
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography
-          sx={{
-            fontWeight: 800,
-            color: C.navy,
-          }}
-        >
-          Amusema AI Assistant
-        </Typography>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography
+                    sx={{
+                      fontWeight: 800,
+                      color: C.navy,
+                    }}
+                  >
+                    Amusema AI Assistant
+                  </Typography>
 
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          noWrap
-          sx={{ display: "block" }}
-        >
-          {event
-            ? `${event.name} • ${event.venue}`
-            : "Football event registration assistant"}
-        </Typography>
-      </Box>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    noWrap
+                    sx={{ display: "block" }}
+                  >
+                    {event
+                      ? `${event.name} • ${event.venue}`
+                      : "Football event registration assistant"}
+                  </Typography>
+                </Box>
 
-      <Chip
-        label="Web Chat"
-        size="small"
-        sx={{
-          bgcolor: C.greenLight,
-          color: C.green,
-          fontWeight: 700,
-          display: { xs: "none", sm: "flex" },
-        }}
-      />
-    </Stack>
+                <Chip
+                  label="Web Chat"
+                  size="small"
+                  sx={{
+                    bgcolor: C.greenLight,
+                    color: C.green,
+                    fontWeight: 700,
+                    display: { xs: "none", sm: "flex" },
+                  }}
+                />
+              </Stack>
 
-    {/* WhatsApp channel */}
-    {event && (
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: { xs: "stretch", sm: "flex-end" },
-          "& .MuiButton-root": {
-            width: { xs: "100%", sm: "auto" },
-          },
-        }}
-      >
-        <WhatsAppRegistrationButton event={event} />
-      </Box>
-    )}
-  </Stack>
-</Box>
+              {/* WhatsApp channel */}
+              {/*  {event && (
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: { xs: "stretch", sm: "flex-end" },
+                    "& .MuiButton-root": {
+                      width: { xs: "100%", sm: "auto" },
+                    },
+                  }}
+                >
+                  <WhatsAppRegistrationButton event={event} />
+                </Box>
+              )}
+              <Button
+                variant="text"
+                size="small"
+                onClick={() => {
+                  setEvent(null);
+                  setMessages([]);
+                  setDraft(null);
+                  setStatus("idle");
+                  setAwaitingFixtureTeamId(false);
+                }}
+              >
+                Change Event
+              </Button> */}
 
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{
+                  pt: { xs: 1.5, md: 0 },
+                  borderTop: {
+                    xs: `1px solid ${C.border}`,
+                    md: "none",
+                  },
+                  flexWrap: "wrap",
+                  rowGap: 1,
+                  alignItems: "center",
+                  justifyContent: {
+                    xs: "flex-end",
+                    md: "flex-start",
+                    lg: "space-between",
+                  },
+                }}
+              >
+                <Button
+                  variant="text"
+                  size="small"
+                  startIcon={<ArrowBackIcon />}
+                  onClick={() => {
+                    setEvent(null);
+                    setMessages([]);
+                    setDraft(null);
+                    setStatus("idle");
+                    setAwaitingFixtureTeamId(false);
+                  }}
+                  sx={{
+                    color: C.muted,
+                    whiteSpace: "nowrap",
+                    "&:hover": {
+                      bgcolor: C.background,
+                      color: C.navy,
+                    },
+                  }}
+                >
+                  Change Event
+                </Button>
+
+                {event && <WhatsAppRegistrationButton event={event} />}
+              </Stack>
+            </Stack>
+          </Box>
 
           {/* Scrollable conversation */}
           <Box
