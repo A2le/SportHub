@@ -176,11 +176,32 @@ public class WhatsAppWebhookController : ControllerBase
             case RegistrationStep.EnteringSchoolName:
                 session.SchoolName = userMessage;
                 session.Step = RegistrationStep.EnteringAgeGroup;
+                
+                // Show available age groups for this event
+                var ageGroups = session.SelectedEvent?.AgeGroups ?? "";
+                if (!string.IsNullOrEmpty(ageGroups))
+                {
+                    return $"✅ School: *{userMessage}*\n\n" +
+                           $"Available age groups for this event:\n*{ageGroups}*\n\n" +
+                           "Which age group is your team?";
+                }
                 return $"✅ School: *{userMessage}*\n\n" +
                        "What age group?\n" +
-                       "(e.g., U15, U17, U19, Senior)";
+                       "(e.g., U11, U13, U15, U17, U19, Senior)";
 
             case RegistrationStep.EnteringAgeGroup:
+                // Validate age group against event's allowed groups
+                var allowedGroups = session.SelectedEvent?.AgeGroups ?? "";
+                if (!string.IsNullOrEmpty(allowedGroups))
+                {
+                    var groupsList = allowedGroups.Split(',').Select(g => g.Trim().ToUpper()).ToList();
+                    if (!groupsList.Contains(userMessage.Trim().ToUpper()))
+                    {
+                        return $"❌ '{userMessage}' is not allowed for this event.\n\n" +
+                               $"Please choose from: *{allowedGroups}*";
+                    }
+                }
+                
                 session.AgeGroup = userMessage;
                 session.Step = RegistrationStep.EnteringCoachName;
                 return $"✅ Age Group: *{userMessage}*\n\n" +
@@ -208,7 +229,7 @@ public class WhatsAppWebhookController : ControllerBase
                        $"Age Group: {session.AgeGroup}\n" +
                        $"Coach: {session.CoachName}\n" +
                        $"Email: {session.CoachEmail}\n" +
-                       $"Phone: {session.CoachPhone}\n\n" +
+                       $"Phone: {session.CoachPhone} (from WhatsApp)\n\n" +
                        $"Reply *YES* to confirm or *CANCEL* to start over.";
 
             case RegistrationStep.Confirming:
@@ -360,6 +381,7 @@ public class EventInfo
     public string Sport { get; set; } = string.Empty;
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
+    public string AgeGroups { get; set; } = string.Empty; // Comma-separated
 }
 
 public class WhatsAppTeamResponse
