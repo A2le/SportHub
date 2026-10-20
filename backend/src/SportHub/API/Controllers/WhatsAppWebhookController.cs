@@ -390,7 +390,15 @@ public class WhatsAppWebhookController : ControllerBase
     {
         try
         {
-            var knowledgeBaseId = _configuration["AWS:KnowledgeBaseId"] ?? "TBJIAEAUKM";
+            var knowledgeBaseId = _configuration["AWS:KnowledgeBaseId"];
+            
+            if (string.IsNullOrEmpty(knowledgeBaseId))
+            {
+                _logger.LogWarning("Knowledge Base ID not configured");
+                return string.Empty;
+            }
+            
+            _logger.LogInformation("Querying KB {KbId} with question: {Question}", knowledgeBaseId, question);
             
             var request = new RetrieveAndGenerateRequest
             {
@@ -411,6 +419,8 @@ public class WhatsAppWebhookController : ControllerBase
 
             var response = await _bedrockRuntime.RetrieveAndGenerateAsync(request);
             
+            _logger.LogInformation("KB Response received: {HasOutput}", response?.Output?.Text != null);
+            
             if (response?.Output?.Text != null)
             {
                 return $"💡 {response.Output.Text}";
@@ -420,7 +430,35 @@ public class WhatsAppWebhookController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error querying Knowledge Base");
+            _logger.LogError(ex, "Error querying Knowledge Base: {Message}", ex.Message);
+            
+            // Return basic answers as fallback
+            var questionLower = question.ToLower();
+            if (questionLower.Contains("rule"))
+            {
+                return "📋 **Tournament Rules**\n\n" +
+                       "• Teams: 11-18 players\n" +
+                       "• Registration: 7 days before event\n" +
+                       "• Fee: R500 per team\n" +
+                       "• Match duration varies by age\n" +
+                       "• Equipment: Jerseys, shin guards\n\n" +
+                       "For full details, contact tournaments@sporthub.com";
+            }
+            else if (questionLower.Contains("fee") || questionLower.Contains("cost"))
+            {
+                return "💰 **Registration Fee**: R500 per team\n" +
+                       "Late registration (< 7 days): Additional R200\n\n" +
+                       "Payment via bank transfer or cash on day.";
+            }
+            else if (questionLower.Contains("time") || questionLower.Contains("duration"))
+            {
+                return "⏱️ **Match Duration**:\n" +
+                       "• U11, U13: 2 x 25 minutes\n" +
+                       "• U15, U17: 2 x 30 minutes\n" +
+                       "• U19, Senior: 2 x 40 minutes\n\n" +
+                       "Minimum 60 minutes rest between matches.";
+            }
+            
             return string.Empty;
         }
     }
