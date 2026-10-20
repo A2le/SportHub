@@ -6,7 +6,7 @@ import {
   Typography,
 } from "@mui/material";
 
-import SportsSoccerIcon from "@mui/icons-material/SportsSoccer";
+//import SportsSoccerIcon from "@mui/icons-material/SportsSoccer";
 
 export default function SportsHubHeader() {
   return (
@@ -24,34 +24,47 @@ export default function SportsHubHeader() {
         }}
       >
         <Stack direction="row" spacing={1.5} sx={{alignItems:"center"}}>
+          
+        <Box sx={{  px: 1, py: 1,  mb: 2 }}>
+<Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            mb: 1,
+          }}
+        >
           <Box
             sx={{
               width: 40,
               height: 40,
+              borderRadius: 1,
               bgcolor: "#079447",
-              borderRadius: 2,
-              display: "grid",
-              placeItems: "center",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 21,
+              fontWeight: 900,
             }}
           >
-            <SportsSoccerIcon sx={{ color: "#FFFFFF" }} />
+            S
           </Box>
 
-          <Box>
-            <Typography
-              variant="h6"
-              
-              sx={{ lineHeight: 1.1, color: "#FFFFFF", fontWeight:800 }}
-            >
-              SportsHub
-            </Typography>
-
-            <Typography
+          <Typography
+            variant="h6"
+            sx={{ color: "#FFFFFF", letterSpacing: 0.3, fontWeight: 800, lineHeight: 1.1,  }}
+          >
+            SportsHub
+          </Typography>
+        </Box>
+           <Typography
               variant="caption"
               sx={{ color: "#CBD5E1" }}
             >
               AI Coach Assistant
             </Typography>
+         
+           
           </Box>
         </Stack>
       </Toolbar>
