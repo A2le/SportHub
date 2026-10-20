@@ -3,6 +3,7 @@ using Amazon.BedrockAgentRuntime;
 using Amazon.BedrockAgentRuntime.Model;
 using SportHub.Application.Services;
 using System.Text;
+using System.Text.Json;
 
 namespace SportHub.API.Controllers;
 
@@ -10,21 +11,21 @@ namespace SportHub.API.Controllers;
 [Route("api/whatsapp")]
 public class WhatsAppWebhookController : ControllerBase
 {
-    private readonly IAmazonBedrockAgentRuntime _bedrockRuntime;
     private readonly TwilioWhatsAppService _whatsappService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<WhatsAppWebhookController> _logger;
+    private readonly IHttpClientFactory _httpClientFactory;
 
     public WhatsAppWebhookController(
-        IAmazonBedrockAgentRuntime bedrockRuntime,
         TwilioWhatsAppService whatsappService,
         IConfiguration configuration,
-        ILogger<WhatsAppWebhookController> logger)
+        ILogger<WhatsAppWebhookController> logger,
+        IHttpClientFactory httpClientFactory)
     {
-        _bedrockRuntime = bedrockRuntime;
         _whatsappService = whatsappService;
         _configuration = configuration;
         _logger = logger;
+        _httpClientFactory = httpClientFactory;
     }
 
     [HttpPost("webhook")]
@@ -77,65 +78,68 @@ public class WhatsAppWebhookController : ControllerBase
     {
         try
         {
-            var agentId = _configuration["AWS:BedrockAgentId"] 
-                ?? throw new InvalidOperationException("AWS:BedrockAgentId not configured");
-            var agentAliasId = _configuration["AWS:BedrockAgentAliasId"] ?? "TSTALIASID";
+            var gatewayUrl = _configuration["AWS:BedrockGatewayUrl"] 
+                ?? "https://sporthub-api-gateway-wzzk4w6ikw.gateway.bedrock-agentcore.eu-west-1.amazonaws.com/mcp";
 
+            var httpClient = _httpClientFactory.CreateClient();
+            
             // Create session ID from phone number (remove special characters)
             var sessionId = userId.Replace("whatsapp:", "").Replace("+", "").Replace(" ", "");
             
-            var request = new InvokeAgentRequest
+            // Prepare request payload for API Gateway
+            var requestPayload = new
             {
-                AgentId = agentId,
-                AgentAliasId = agentAliasId,
-                SessionId = sessionId,
-                InputText = userMessage
-            };
-
-            var response = await _bedrockRuntime.InvokeAgentAsync(request);
-
-            // Process the streaming response
-            var fullResponse = new StringBuilder();
-            
-            // The response.Completion is an IAsyncEnumerable of events
-            await foreach (var completionEvent in response.Completion)
-            {
-                // Each event can have different types - we need to handle the chunk type
-                // Use dynamic to access properties since the exact type structure varies
-                dynamic eventData = completionEvent;
-                
-                try
+                method = "call_tool",
+                @params = new
                 {
-                    // Try to access chunk.bytes pattern
-                    if (eventData.Chunk != null && eventData.Chunk.Bytes != null)
+                    name = "ask_question",
+                    arguments = new
                     {
-                        byte[] bytes = eventData.Chunk.Bytes.ToArray();
-                        if (bytes.Length > 0)
-                        {
-                            var chunkText = Encoding.UTF8.GetString(bytes);
-                            fullResponse.Append(chunkText);
-                        }
+                        question = userMessage,
+                        session_id = sessionId
                     }
                 }
-                catch
+            };
+
+            var jsonContent = JsonSerializer.Serialize(requestPayload);
+            var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+
+            _logger.LogInformation("Calling Bedrock Gateway: {Url}", gatewayUrl);
+            
+            var response = await httpClient.PostAsync(gatewayUrl, content);
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Bedrock Gateway error: {StatusCode} - {Error}", response.StatusCode, errorContent);
+                return "I'm having trouble connecting to my AI service. Please try again in a moment.";
+            }
+
+            var responseBody = await response.Content.ReadAsStringAsync();
+            _logger.LogInformation("Bedrock Gateway response: {Response}", responseBody);
+
+            // Parse response - adjust based on actual API Gateway response format
+            var responseJson = JsonDocument.Parse(responseBody);
+            
+            // Try to extract the text response - format may vary
+            if (responseJson.RootElement.TryGetProperty("content", out var contentArray))
+            {
+                if (contentArray.GetArrayLength() > 0)
                 {
-                    // If we can't parse this event, skip it
-                    continue;
+                    var firstContent = contentArray[0];
+                    if (firstContent.TryGetProperty("text", out var textElement))
+                    {
+                        return textElement.GetString() ?? "Sorry, I couldn't generate a response.";
+                    }
                 }
             }
-
-            var result = fullResponse.ToString();
             
-            if (string.IsNullOrWhiteSpace(result))
-            {
-                return "I received your message but couldn't generate a response. Please try rephrasing your question.";
-            }
-
-            return result;
+            // Fallback: return raw response if we can't parse it
+            return responseBody;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error invoking Bedrock agent");
+            _logger.LogError(ex, "Error invoking Bedrock gateway");
             return "I'm having trouble processing your request right now. Please try again in a moment.";
         }
     }

@@ -38,6 +38,9 @@ builder.Services.AddScoped<WhatsAppService>();
 builder.Services.AddScoped<EmailNotificationService>();
 builder.Services.AddScoped<TwilioWhatsAppService>();
 
+// HTTP Client for API calls
+builder.Services.AddHttpClient();
+
 // AWS SDK Services
 var awsOptions = builder.Configuration.GetAWSOptions();
 awsOptions.Region = Amazon.RegionEndpoint.GetBySystemName(
