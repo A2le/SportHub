@@ -4,6 +4,7 @@ export interface EventResponse {
   id: number;
   name: string;
   eventType: string;
+  sportCategory: string;
   venue: string;
   startDate: string;
   endDate: string;
@@ -12,11 +13,12 @@ export interface EventResponse {
   numberOfTeams: number;
   description: string;
   ageGroups: string;
-  numberOfPitches: number;
   pitchStartTime: string;
   pitchEndTime: string;
   matchDurationMinutes: number;
   breakBetweenMatchesMinutes: number;
+  maxMatchesPerTeam: number;
+  minRestTimeBetweenMatches: number;
   createdAt: string;
 }
 
@@ -28,14 +30,16 @@ export interface CreateEventRequest {
   startTime: string;
   endTime: string;
   numberOfTeams: number;
-  numberOfPitches: number;
   pitchStartTime: string;
   pitchEndTime: string;
   description?: string;
   ageGroups?: string;
   eventType?: string;
+  sportCategory?: string;
   matchDurationMinutes?: number;
   breakBetweenMatchesMinutes?: number;
+  maxMatchesPerTeam?: number;
+  minRestTimeBetweenMatches?: number;
 }
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
@@ -43,7 +47,10 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`${res.status} ${res.statusText}: ${body}`);
+  }
   return res.json();
 }
 
@@ -81,8 +88,29 @@ export interface FixtureResponse {
   status: string;
 }
 
+export interface RegistrationResponse {
+  id: number;
+  eventId: number;
+  teamId: number;
+  teamName: string;
+  ageGroup: string;
+  division: string;
+  status: string;
+  registeredAt: string;
+}
+
+export const registrationsApi = {
+  getByEvent: (eventId: number) =>
+    request<RegistrationResponse[]>(`/api/registrations/event/${eventId}`),
+};
+
 export const fixturesApi = {
   getByEvent: (eventId: number) => request<FixtureResponse[]>(`/api/fixtures/${eventId}`),
+  generate: (eventId: number, pitchId: number, startDate: string) =>
+    request<FixtureResponse[]>('/api/fixtures/generate', {
+      method: 'POST',
+      body: JSON.stringify({ eventId, pitchId, startDate }),
+    }),
 };
 
 export const eventsApi = {

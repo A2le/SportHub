@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import CreateEvent from "./pages/CreateEvent";
 import Teams from "./pages/Teams";
 import Fixtures from "./pages/Fixtures";
+import EventDetail from "./pages/EventDetail";
 
 function App() {
   return (
@@ -31,10 +32,8 @@ function App() {
           element={<Teams />}
         />
 
-        <Route
-          path="/fixtures"
-          element={<Fixtures />}
-        />
+        <Route path="/fixtures" element={<Fixtures />} />
+        <Route path="/events/:id" element={<EventDetail />} />
       </Routes>
     </BrowserRouter>
   );
