@@ -39,7 +39,7 @@ export default function ChatInput({
       <TextField
         fullWidth
         size="small"
-        placeholder="Message Amusema AI..."
+        placeholder="Message Amusema SportsHub..."
         value={message}
         onChange={(event) => setMessage(event.target.value)}
         disabled={disabled}
