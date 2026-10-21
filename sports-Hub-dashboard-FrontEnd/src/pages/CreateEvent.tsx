@@ -68,6 +68,7 @@ export default function CreateEvent() {
 
   // Event Details
   const [eventName, setEventName] = useState("");
+  const [sportCategory, setSportCategory] = useState("");
   const [eventType, setEventType] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -75,14 +76,19 @@ export default function CreateEvent() {
   const [description, setDescription] = useState("");
 
   // Competition Setup
-  const [u13, setU13] = useState(false);
+  const [u11, setU11] = useState(false);
   const [u15, setU15] = useState(false);
-  const [u17, setU17] = useState(false);
+  const [u19, setU19] = useState(false);
   const [numberOfTeams, setNumberOfTeams] = useState("");
 
-  // Scheduling
+  // Scheduling — event window
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+
+  // Scheduling — pitch window (must be within event window)
+  const [pitchStartTime, setPitchStartTime] = useState("");
+  const [pitchEndTime, setPitchEndTime] = useState("");
+
   const [matchDuration, setMatchDuration] = useState("");
   const [breakDuration, setBreakDuration] = useState("");
   const [maxMatchesPerTeam, setMaxMatchesPerTeam] = useState("");
@@ -91,26 +97,41 @@ export default function CreateEvent() {
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const selectedAgeGroups = [u13 && "U13", u15 && "U15", u17 && "U17"].filter(Boolean) as string[];
-  const sportCategory = eventType.toLowerCase().includes("rugby") ? "Rugby" : "Football";
+  const selectedAgeGroups = [u11 && "U11", u15 && "U15", u19 && "U19"].filter(Boolean) as string[];
+  const resolvedSport = sportCategory.trim();
 
   const validate = (): boolean => {
     const e: Record<string, string> = {};
     if (!eventName.trim()) e.eventName = "Event name is required.";
-    if (!eventType) e.eventType = "Event type is required.";
+    if (!resolvedSport.trim()) e.sportCategory = "Sport is required.";
+    if (!eventType.trim()) e.eventType = "Event type is required.";
     if (!startDate) e.startDate = "Start date is required.";
     if (!endDate) e.endDate = "End date is required.";
     if (startDate && endDate && endDate < startDate) e.endDate = "End date cannot be before start date.";
     if (!venue.trim()) e.venue = "Venue is required.";
     if (selectedAgeGroups.length === 0) e.ageGroups = "Select at least one age group.";
     if (!numberOfTeams || Number(numberOfTeams) < 2) e.numberOfTeams = "Minimum 2 teams required.";
-    if (!startTime) e.startTime = "Start time is required.";
-    if (!endTime) e.endTime = "End time is required.";
+
+    // Event times
+    if (!startTime) e.startTime = "Event start time is required.";
+    if (!endTime) e.endTime = "Event end time is required.";
     if (startTime && endTime && endTime <= startTime) e.endTime = "End time must be after start time.";
+
+    // Pitch times
+    if (!pitchStartTime) e.pitchStartTime = "Pitch start time is required.";
+    if (!pitchEndTime) e.pitchEndTime = "Pitch end time is required.";
+    if (pitchStartTime && startTime && pitchStartTime < startTime)
+      e.pitchStartTime = "Pitch start time cannot be before event start time.";
+    if (pitchEndTime && endTime && pitchEndTime > endTime)
+      e.pitchEndTime = "Pitch end time cannot be after event end time.";
+    if (pitchStartTime && pitchEndTime && pitchEndTime <= pitchStartTime)
+      e.pitchEndTime = "Pitch end time must be after pitch start time.";
+
     if (!matchDuration || Number(matchDuration) < 1) e.matchDuration = "Match duration must be at least 1 minute.";
     if (!breakDuration || Number(breakDuration) < 0) e.breakDuration = "Break duration cannot be negative.";
     if (!maxMatchesPerTeam || Number(maxMatchesPerTeam) < 1) e.maxMatchesPerTeam = "Must be at least 1.";
-    if (!minRestTime || Number(minRestTime) < 0) e.minRestTime = "Cannot be negative.";
+    if (!minRestTime || Number(minRestTime) < 0) e.minRestTime = "Min rest time cannot be negative.";
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -121,17 +142,17 @@ export default function CreateEvent() {
     try {
       await eventsApi.create({
         name: eventName,
-        eventType,
-        sportCategory,
+        eventType: `${resolvedSport} ${eventType}`.trim(),
+        sportCategory: resolvedSport,
         venue,
         description,
         startDate,
         endDate,
         startTime,
         endTime,
+        pitchStartTime,
+        pitchEndTime,
         numberOfTeams: Number(numberOfTeams),
-        pitchStartTime: startTime,
-        pitchEndTime: endTime,
         ageGroups: selectedAgeGroups.join(","),
         matchDurationMinutes: Number(matchDuration),
         breakBetweenMatchesMinutes: Number(breakDuration),
@@ -170,22 +191,49 @@ export default function CreateEvent() {
               />
             </Grid>
 
+            {/* Sport — simple dropdown */}
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 select
+                label="Sport"
+                value={sportCategory}
+                onChange={(e) => setSportCategory(e.target.value)}
+                error={!!errors.sportCategory}
+                helperText={errors.sportCategory}
+                sx={fieldSx}
+              >
+                <MenuItem value="Football">Football</MenuItem>
+                <MenuItem value="Rugby">Rugby</MenuItem>
+                <MenuItem value="Netball">Netball</MenuItem>
+              </TextField>
+            </Grid>
+
+            {/* Event Type — free text e.g. Festival, Tournament, League */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
                 label="Event Type"
+                placeholder="Festival, Tournament, League..."
                 value={eventType}
                 onChange={(e) => setEventType(e.target.value)}
                 error={!!errors.eventType}
-                helperText={errors.eventType}
+                helperText={errors.eventType ?? "e.g. Festival, Tournament, League"}
                 sx={fieldSx}
-              >
-                <MenuItem value="Football Festival">Football Festival</MenuItem>
-                <MenuItem value="Rugby Tournament">Rugby Tournament</MenuItem>
-                <MenuItem value="Tournament">Tournament</MenuItem>
-                <MenuItem value="League">League</MenuItem>
-              </TextField>
+              />
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
+                label="Venue"
+                placeholder="TUT Sports Grounds"
+                value={venue}
+                onChange={(e) => setVenue(e.target.value)}
+                error={!!errors.venue}
+                helperText={errors.venue}
+                sx={fieldSx}
+              />
             </Grid>
 
             <Grid size={{ xs: 12, md: 6 }}>
@@ -219,12 +267,33 @@ export default function CreateEvent() {
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
-                label="Venue"
-                placeholder="TUT Sports Grounds"
-                value={venue}
-                onChange={(e) => setVenue(e.target.value)}
-                error={!!errors.venue}
-                helperText={errors.venue}
+                type="time"
+                label="Start Time"
+                value={startTime}
+                onChange={(e) => {
+                  setStartTime(e.target.value);
+                  if (pitchStartTime && pitchStartTime < e.target.value) setPitchStartTime("");
+                }}
+                slotProps={{ inputLabel: { shrink: true } }}
+                error={!!errors.startTime}
+                helperText={errors.startTime}
+                sx={fieldSx}
+              />
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
+                type="time"
+                label="End Time"
+                value={endTime}
+                onChange={(e) => {
+                  setEndTime(e.target.value);
+                  if (pitchEndTime && pitchEndTime > e.target.value) setPitchEndTime("");
+                }}
+                slotProps={{ inputLabel: { shrink: true } }}
+                error={!!errors.endTime}
+                helperText={errors.endTime}
                 sx={fieldSx}
               />
             </Grid>
@@ -253,9 +322,9 @@ export default function CreateEvent() {
 
           <FormGroup row sx={{ mb: 1, gap: 1 }}>
             {[
-              { label: "U13", checked: u13, set: setU13 },
+              { label: "U11", checked: u11, set: setU11 },
               { label: "U15", checked: u15, set: setU15 },
-              { label: "U17", checked: u17, set: setU17 },
+              { label: "U19", checked: u19, set: setU19 },
             ].map(({ label, checked, set }) => (
               <FormControlLabel
                 key={label}
@@ -312,36 +381,53 @@ export default function CreateEvent() {
         </SectionCard>
 
         {/* Scheduling */}
-        <SectionCard icon={<AccessTimeIcon />} title="Scheduling" subtitle="Set match times and durations">
+        <SectionCard icon={<AccessTimeIcon />} title="Scheduling" subtitle="Pitch availability and match configuration">
+          <Typography variant="body2" sx={{ fontWeight: 600, color: "#101D33", mb: 1 }}>
+            Pitch Availability
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: "block" }}>
+            Must fall within the event window above.
+          </Typography>
+          <Grid container spacing={3} sx={{ mb: 3 }}>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
+                type="time"
+                label="Pitch Start Time"
+                value={pitchStartTime}
+                onChange={(e) => setPitchStartTime(e.target.value)}
+                slotProps={{
+                  inputLabel: { shrink: true },
+                  htmlInput: { min: startTime || undefined },
+                }}
+                error={!!errors.pitchStartTime}
+                helperText={errors.pitchStartTime || (startTime ? `From ${startTime} onwards` : "")}
+                sx={fieldSx}
+              />
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
+                type="time"
+                label="Pitch End Time"
+                value={pitchEndTime}
+                onChange={(e) => setPitchEndTime(e.target.value)}
+                slotProps={{
+                  inputLabel: { shrink: true },
+                  htmlInput: { max: endTime || undefined },
+                }}
+                error={!!errors.pitchEndTime}
+                helperText={errors.pitchEndTime || (endTime ? `Up to ${endTime}` : "")}
+                sx={fieldSx}
+              />
+            </Grid>
+          </Grid>
+
+          <Typography variant="body2" sx={{ fontWeight: 600, color: "#101D33", mb: 2 }}>
+            Match Configuration
+          </Typography>
           <Grid container spacing={3}>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                type="time"
-                label="Start Time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-                error={!!errors.startTime}
-                helperText={errors.startTime}
-                sx={fieldSx}
-              />
-            </Grid>
-
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                type="time"
-                label="End Time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-                error={!!errors.endTime}
-                helperText={errors.endTime}
-                sx={fieldSx}
-              />
-            </Grid>
-
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
@@ -393,7 +479,7 @@ export default function CreateEvent() {
                 onChange={(e) => setMinRestTime(e.target.value)}
                 slotProps={{ htmlInput: { min: 0 } }}
                 error={!!errors.minRestTime}
-                helperText={errors.minRestTime}
+                helperText={errors.minRestTime || "Minimum rest a team gets between matches"}
                 sx={fieldSx}
               />
             </Grid>
@@ -406,7 +492,6 @@ export default function CreateEvent() {
           </Alert>
         )}
 
-        {/* Submit */}
         <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2, pb: 4 }}>
           <Button
             variant="outlined"

@@ -29,15 +29,17 @@ import { eventsApi, registrationsApi, type EventResponse } from "../api";
 
 // Generic sport images keyed by event type keyword
 const SPORT_IMAGES: Record<string, string> = {
-  football: "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=900&q=80",
-  rugby: "https://images.unsplash.com/photo-1519861531473-9200262188bf?auto=format&fit=crop&w=900&q=80",
-  default: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=900&q=80",
+  football: "/football.jpg",
+  rugby: "/rugby.jpg",
+  netball: "/netball.jpg",
+  default: "/sports-default.jpg",
 };
 
-function getSportImage(eventType: string): string {
-  const lower = eventType.toLowerCase();
-  if (lower.includes("football")) return SPORT_IMAGES.football;
-  if (lower.includes("rugby")) return SPORT_IMAGES.rugby;
+function getSportImage(sportCategory: string, eventType: string): string {
+  const src = (sportCategory || eventType).toLowerCase();
+  if (src.includes("football")) return SPORT_IMAGES.football;
+  if (src.includes("rugby")) return SPORT_IMAGES.rugby;
+  if (src.includes("netball")) return SPORT_IMAGES.netball;
   return SPORT_IMAGES.default;
 }
 
@@ -51,18 +53,23 @@ export default function Dashboard() {
   const [sport, setSport] = useState("All");
 
   useEffect(() => {
-    eventsApi.list().then(async (evs) => {
-      setEvents(evs);
-      // fetch registration counts for all events in parallel
-      const counts = await Promise.all(
-        evs.map((e) =>
-          registrationsApi.getByEvent(e.id)
-            .then((regs) => ({ id: e.id, count: regs.length }))
-            .catch(() => ({ id: e.id, count: 0 }))
-        )
-      );
-      setRegisteredCounts(Object.fromEntries(counts.map((c) => [c.id, c.count])));
-    }).finally(() => setLoading(false));
+    // Load events immediately — cards render right away
+    eventsApi.list()
+      .then((evs) => {
+        setEvents(evs);
+        setLoading(false);
+        // Fetch registration counts in the background after cards are visible
+        Promise.all(
+          evs.map((e) =>
+            registrationsApi.getByEvent(e.id)
+              .then((regs) => ({ id: e.id, count: regs.length }))
+              .catch(() => ({ id: e.id, count: 0 }))
+          )
+        ).then((counts) =>
+          setRegisteredCounts(Object.fromEntries(counts.map((c) => [c.id, c.count])))
+        );
+      })
+      .catch(() => setLoading(false));
   }, []);
 
   const sports = ["All", ...new Set(events.map((e) => e.eventType))];
@@ -226,8 +233,9 @@ export default function Dashboard() {
                     <Box sx={{ position: "relative" }}>
                       <CardMedia
                         component="img"
-                        image={getSportImage(item.eventType)}
+                        image={getSportImage(item.sportCategory, item.eventType)}
                         alt={item.eventType}
+                        loading="lazy"
                         sx={{ height: 160, objectFit: "cover" }}
                       />
                       <Chip
