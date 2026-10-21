@@ -32,46 +32,63 @@ public class AwsWhatsAppWebhookController : ControllerBase
     }
 
     [HttpPost("webhook")]
-    public async Task<IActionResult> ReceiveMessage([FromBody] AwsWhatsAppWebhookRequest request)
+    public async Task<IActionResult> ReceiveMessage([FromBody] JsonElement requestBody)
     {
         try
         {
             _logger.LogInformation("Received AWS WhatsApp webhook: {Json}", 
-                JsonSerializer.Serialize(request));
+                requestBody.ToString());
 
-            // AWS WhatsApp sends messages in 'entry' array
-            if (request.Entry == null || !request.Entry.Any())
+            // Check if this is an SNS subscription confirmation
+            if (requestBody.TryGetProperty("Type", out var typeElement))
             {
-                return Ok(new { status = "no_entry" });
-            }
-
-            foreach (var entry in request.Entry)
-            {
-                if (entry.Changes == null || !entry.Changes.Any())
-                    continue;
-
-                foreach (var change in entry.Changes)
+                var messageType = typeElement.GetString();
+                
+                if (messageType == "SubscriptionConfirmation")
                 {
-                    if (change.Value?.Messages == null || !change.Value.Messages.Any())
-                        continue;
-
-                    foreach (var message in change.Value.Messages)
+                    // Confirm SNS subscription
+                    if (requestBody.TryGetProperty("SubscribeURL", out var urlElement))
                     {
-                        var userMessage = message.Text?.Body ?? message.Interactive?.ButtonReply?.Title ?? "";
-                        var fromNumber = message.From;
-
-                        if (string.IsNullOrWhiteSpace(userMessage) || string.IsNullOrWhiteSpace(fromNumber))
-                            continue;
-
-                        _logger.LogInformation("Processing message from {From}: {Message}", 
-                            fromNumber, userMessage);
-
-                        // Process the message
-                        var response = await ProcessMessageAsync(userMessage, fromNumber);
-
-                        // Send response back via AWS WhatsApp
-                        await _whatsappService.SendMessageAsync(fromNumber, response);
+                        var subscribeUrl = urlElement.GetString();
+                        _logger.LogInformation("Confirming SNS subscription: {Url}", subscribeUrl);
+                        
+                        var httpClient = _httpClientFactory.CreateClient();
+                        await httpClient.GetAsync(subscribeUrl);
+                        
+                        return Ok(new { status = "subscription_confirmed" });
                     }
+                }
+                
+                // Handle SNS notification
+                if (messageType == "Notification")
+                {
+                    if (requestBody.TryGetProperty("Message", out var messageElement))
+                    {
+                        var messageJson = messageElement.GetString();
+                        if (string.IsNullOrEmpty(messageJson))
+                        {
+                            return Ok(new { status = "empty_message" });
+                        }
+
+                        // Parse the actual WhatsApp webhook payload from SNS message
+                        var whatsappPayload = JsonSerializer.Deserialize<AwsWhatsAppWebhookRequest>(messageJson);
+                        
+                        if (whatsappPayload?.Entry == null || !whatsappPayload.Entry.Any())
+                        {
+                            return Ok(new { status = "no_entry" });
+                        }
+
+                        await ProcessWhatsAppMessage(whatsappPayload);
+                    }
+                }
+            }
+            else
+            {
+                // Direct webhook call (for testing)
+                var whatsappPayload = JsonSerializer.Deserialize<AwsWhatsAppWebhookRequest>(requestBody.ToString());
+                if (whatsappPayload?.Entry != null && whatsappPayload.Entry.Any())
+                {
+                    await ProcessWhatsAppMessage(whatsappPayload);
                 }
             }
 
@@ -81,6 +98,39 @@ public class AwsWhatsAppWebhookController : ControllerBase
         {
             _logger.LogError(ex, "Error processing AWS WhatsApp webhook");
             return Ok(new { status = "error", message = ex.Message });
+        }
+    }
+
+    private async Task ProcessWhatsAppMessage(AwsWhatsAppWebhookRequest request)
+    {
+        foreach (var entry in request.Entry ?? new List<WhatsAppEntry>())
+        {
+            if (entry.Changes == null || !entry.Changes.Any())
+                continue;
+
+            foreach (var change in entry.Changes)
+            {
+                if (change.Value?.Messages == null || !change.Value.Messages.Any())
+                    continue;
+
+                foreach (var message in change.Value.Messages)
+                {
+                    var userMessage = message.Text?.Body ?? message.Interactive?.ButtonReply?.Title ?? "";
+                    var fromNumber = message.From;
+
+                    if (string.IsNullOrWhiteSpace(userMessage) || string.IsNullOrWhiteSpace(fromNumber))
+                        continue;
+
+                    _logger.LogInformation("Processing message from {From}: {Message}", 
+                        fromNumber, userMessage);
+
+                    // Process the message
+                    var response = await ProcessMessageAsync(userMessage, fromNumber);
+
+                    // Send response back via AWS WhatsApp
+                    await _whatsappService.SendMessageAsync(fromNumber, response);
+                }
+            }
         }
     }
 
