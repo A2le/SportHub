@@ -4,12 +4,9 @@ import CoachChatPage from "./pages/CoachChatPage";
 
 export default function App() {
   return (
-  // <ProtectedRoute>
-  <CoachChatPage />
-//</ProtectedRoute>
-  )
-    //return <WhatsAppMonitorPage />;
-
+    //<ProtectedRoute>
+      <CoachChatPage />
+    //</ProtectedRoute>
+  );
+  //return <WhatsAppMonitorPage />;
 }
-
-
