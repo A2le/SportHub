@@ -52,11 +52,34 @@ public class AwsWhatsAppWebhookController : ControllerBase
                         var subscribeUrl = urlElement.GetString();
                         _logger.LogInformation("Confirming SNS subscription: {Url}", subscribeUrl);
                         
-                        var httpClient = _httpClientFactory.CreateClient();
-                        await httpClient.GetAsync(subscribeUrl);
-                        
-                        return Ok(new { status = "subscription_confirmed" });
+                        try
+                        {
+                            var httpClient = _httpClientFactory.CreateClient();
+                            var response = await httpClient.GetAsync(subscribeUrl);
+                            var content = await response.Content.ReadAsStringAsync();
+                            
+                            _logger.LogInformation("SNS Confirmation Response: Status={Status}, Body={Body}", 
+                                response.StatusCode, content);
+                            
+                            if (response.IsSuccessStatusCode)
+                            {
+                                return Ok(new { status = "subscription_confirmed", message = "Success" });
+                            }
+                            else
+                            {
+                                _logger.LogError("SNS Confirmation failed: {Status} - {Body}", 
+                                    response.StatusCode, content);
+                                return Ok(new { status = "confirmation_failed", error = content });
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error confirming SNS subscription");
+                            return Ok(new { status = "error", message = ex.Message });
+                        }
                     }
+                    
+                    return Ok(new { status = "no_subscribe_url" });
                 }
                 
                 // Handle SNS notification
