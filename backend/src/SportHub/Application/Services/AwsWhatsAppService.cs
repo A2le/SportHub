@@ -35,18 +35,22 @@ public class AwsWhatsAppService
             // Format phone number (remove 'whatsapp:' prefix if present)
             var cleanNumber = toPhoneNumber.Replace("whatsapp:", "").Trim();
 
+            // Create the WhatsApp message payload
+            var messagePayload = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                messaging_product = "whatsapp",
+                to = cleanNumber,
+                type = "text",
+                text = new { body = message }
+            });
+
+            var messageBytes = System.Text.Encoding.UTF8.GetBytes(messagePayload);
+            var messageStream = new MemoryStream(messageBytes);
+
             var request = new SendWhatsAppMessageRequest
             {
                 OriginationPhoneNumberId = phoneNumberId,
-                Message = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(
-                    System.Text.Json.JsonSerializer.Serialize(new
-                    {
-                        messaging_product = "whatsapp",
-                        to = cleanNumber,
-                        type = "text",
-                        text = new { body = message }
-                    })
-                )),
+                Message = messageStream,
                 MetaApiVersion = "v20.0"
             };
 
