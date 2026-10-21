@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using SportHub.Application.Services;
+using SportHub.Application.DTOs;
 using System.Text;
 using System.Text.Json;
 using System.Collections.Concurrent;
