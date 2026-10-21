@@ -586,7 +586,7 @@ export default function CoachChatPage() {
                       color: C.navy,
                     }}
                   >
-                    Amusema AI Assistant
+                    Amusema Team Registration
                   </Typography>
 
                   <Typography
@@ -728,7 +728,7 @@ export default function CoachChatPage() {
                 </Avatar>
 
                 <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                  Welcome to SportsHub AI
+                  Welcome to SportsHub
                 </Typography>
 
                 <Typography
@@ -796,7 +796,7 @@ export default function CoachChatPage() {
                   }}
                 >
                   <Typography variant="body2">
-                    Amusema AI is typing...
+                    Amusema SportsHub is typing...
                   </Typography>
                 </Paper>
               </Stack>
@@ -843,7 +843,7 @@ export default function CoachChatPage() {
               color: C.muted,
             }}
           >
-            Powered by Amusema Sports AI
+            Powered by Amusema SportsHub
           </Typography>
         </Paper>
       </Container>
