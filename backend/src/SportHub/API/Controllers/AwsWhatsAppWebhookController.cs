@@ -99,25 +99,63 @@ public class AwsWhatsAppWebhookController : ControllerBase
                             return Ok(new { status = "empty_message" });
                         }
 
-                        // Parse the actual WhatsApp webhook payload from SNS message
-                        var whatsappPayload = JsonSerializer.Deserialize<AwsWhatsAppWebhookRequest>(messageJson);
+                        // Parse the AWS Social Messaging wrapper
+                        var awsWrapper = JsonSerializer.Deserialize<JsonElement>(messageJson);
                         
-                        if (whatsappPayload?.Entry == null || !whatsappPayload.Entry.Any())
+                        // Extract the actual WhatsApp webhook from whatsAppWebhookEntry
+                        if (awsWrapper.TryGetProperty("whatsAppWebhookEntry", out var whatsappEntryElement))
                         {
-                            return Ok(new { status = "no_entry" });
+                            var whatsappEntryJson = whatsappEntryElement.GetString();
+                            if (!string.IsNullOrEmpty(whatsappEntryJson))
+                            {
+                                // Parse the WhatsApp entry JSON
+                                var whatsappEntry = JsonSerializer.Deserialize<JsonElement>(whatsappEntryJson);
+                                
+                                // Create the expected WhatsApp webhook structure
+                                var whatsappPayload = new AwsWhatsAppWebhookRequest
+                                {
+                                    Object = "whatsapp_business_account",
+                                    Entry = new List<WhatsAppEntry>
+                                    {
+                                        JsonSerializer.Deserialize<WhatsAppEntry>(whatsappEntry.ToString())!
+                                    }
+                                };
+                                
+                                await ProcessWhatsAppMessage(whatsappPayload);
+                            }
                         }
-
-                        await ProcessWhatsAppMessage(whatsappPayload);
                     }
                 }
             }
             else
             {
-                // Direct webhook call (for testing)
-                var whatsappPayload = JsonSerializer.Deserialize<AwsWhatsAppWebhookRequest>(requestBody.ToString());
-                if (whatsappPayload?.Entry != null && whatsappPayload.Entry.Any())
+                // Direct webhook call (not through SNS)
+                // Check if it's AWS Social Messaging format
+                if (requestBody.TryGetProperty("whatsAppWebhookEntry", out var whatsappEntryElement))
                 {
-                    await ProcessWhatsAppMessage(whatsappPayload);
+                    var whatsappEntryJson = whatsappEntryElement.GetString();
+                    if (!string.IsNullOrEmpty(whatsappEntryJson))
+                    {
+                        var whatsappEntry = JsonSerializer.Deserialize<JsonElement>(whatsappEntryJson);
+                        var whatsappPayload = new AwsWhatsAppWebhookRequest
+                        {
+                            Object = "whatsapp_business_account",
+                            Entry = new List<WhatsAppEntry>
+                            {
+                                JsonSerializer.Deserialize<WhatsAppEntry>(whatsappEntry.ToString())!
+                            }
+                        };
+                        await ProcessWhatsAppMessage(whatsappPayload);
+                    }
+                }
+                else
+                {
+                    // Standard WhatsApp webhook format
+                    var whatsappPayload = JsonSerializer.Deserialize<AwsWhatsAppWebhookRequest>(body);
+                    if (whatsappPayload?.Entry != null && whatsappPayload.Entry.Any())
+                    {
+                        await ProcessWhatsAppMessage(whatsappPayload);
+                    }
                 }
             }
 
