@@ -4,8 +4,6 @@ using SportHub.Application.DTOs;
 using System.Text;
 using System.Text.Json;
 using System.Collections.Concurrent;
-using Amazon.SocialMessaging;
-using Amazon.SocialMessaging.Model;
 
 namespace SportHub.API.Controllers;
 
@@ -17,7 +15,6 @@ public class WhatsAppWebhookController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly ILogger<WhatsAppWebhookController> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IAmazonSocialMessaging _socialMessaging;
     
     // In-memory session storage (for production, use Redis or database)
     private static readonly ConcurrentDictionary<string, UserSession> _sessions = new();
@@ -26,14 +23,12 @@ public class WhatsAppWebhookController : ControllerBase
         TwilioWhatsAppService whatsappService,
         IConfiguration configuration,
         ILogger<WhatsAppWebhookController> logger,
-        IHttpClientFactory httpClientFactory,
-        IAmazonSocialMessaging socialMessaging)
+        IHttpClientFactory httpClientFactory)
     {
         _whatsappService = whatsappService;
         _configuration = configuration;
         _logger = logger;
         _httpClientFactory = httpClientFactory;
-        _socialMessaging = socialMessaging;
     }
 
     [HttpPost("webhook")]
