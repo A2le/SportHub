@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace SportHub.Application.DTOs;
 
 // Shared models for WhatsApp controllers
@@ -75,56 +77,87 @@ public class TwilioWebhookRequest
 // AWS WhatsApp-specific models
 public class AwsWhatsAppWebhookRequest
 {
+    [JsonPropertyName("object")]
     public string Object { get; set; } = string.Empty;
+    
+    [JsonPropertyName("entry")]
     public List<WhatsAppEntry>? Entry { get; set; }
 }
 
 public class WhatsAppEntry
 {
+    [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
+    
+    [JsonPropertyName("changes")]
     public List<WhatsAppChange>? Changes { get; set; }
 }
 
 public class WhatsAppChange
 {
+    [JsonPropertyName("value")]
     public WhatsAppValue? Value { get; set; }
+    
+    [JsonPropertyName("field")]
     public string Field { get; set; } = string.Empty;
 }
 
 public class WhatsAppValue
 {
+    [JsonPropertyName("messaging_product")]
     public string MessagingProduct { get; set; } = string.Empty;
+    
+    [JsonPropertyName("metadata")]
     public WhatsAppMetadata? Metadata { get; set; }
+    
+    [JsonPropertyName("messages")]
     public List<WhatsAppMessage>? Messages { get; set; }
 }
 
 public class WhatsAppMetadata
 {
+    [JsonPropertyName("display_phone_number")]
     public string DisplayPhoneNumber { get; set; } = string.Empty;
+    
+    [JsonPropertyName("phone_number_id")]
     public string PhoneNumberId { get; set; } = string.Empty;
 }
 
 public class WhatsAppMessage
 {
+    [JsonPropertyName("from")]
     public string From { get; set; } = string.Empty;
+    
+    [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
+    
+    [JsonPropertyName("timestamp")]
     public string Timestamp { get; set; } = string.Empty;
+    
+    [JsonPropertyName("text")]
     public WhatsAppTextMessage? Text { get; set; }
+    
+    [JsonPropertyName("interactive")]
     public WhatsAppInteractive? Interactive { get; set; }
+    
+    [JsonPropertyName("type")]
     public string Type { get; set; } = string.Empty;
 }
 
 public class WhatsAppTextMessage
 {
+    [JsonPropertyName("body")]
     public string Body { get; set; } = string.Empty;
 }
 
 public class WhatsAppInteractive
 {
+    [JsonPropertyName("button_reply")]
     public WhatsAppButtonReply? ButtonReply { get; set; }
 }
 
 public class WhatsAppButtonReply
 {
+    [JsonPropertyName("title")]
     public string Title { get; set; } = string.Empty;
 }
