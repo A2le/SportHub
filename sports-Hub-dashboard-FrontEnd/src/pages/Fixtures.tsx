@@ -29,26 +29,22 @@ import {
   eventsApi,
   fixturesApi,
   registrationsApi,
-  teamsApi,
   type EventResponse,
   type FixtureResponse,
-  type TeamResponse,
 } from "../api";
 
 export default function Fixtures() {
   const [events, setEvents] = useState<EventResponse[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<number | "">("");
   const [fixtures, setFixtures] = useState<FixtureResponse[]>([]);
-  const [teams, setTeams] = useState<TeamResponse[]>([]);
   const [registeredCount, setRegisteredCount] = useState(0);
   const [loadingFixtures, setLoadingFixtures] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState("");
 
   useEffect(() => {
-    Promise.all([eventsApi.list(), teamsApi.list()]).then(([evs, tms]) => {
+    eventsApi.list().then((evs) => {
       setEvents(evs);
-      setTeams(tms);
       if (evs.length > 0) setSelectedEventId(evs[0].id);
     });
   }, []);
@@ -56,8 +52,6 @@ export default function Fixtures() {
   useEffect(() => {
     if (selectedEventId === "") return;
     setGenerateError("");
-
-    // fetch fixtures and registration count in parallel
     setLoadingFixtures(true);
     Promise.all([
       fixturesApi.getByEvent(selectedEventId),
@@ -76,9 +70,6 @@ export default function Fixtures() {
     ? Math.min(100, Math.round((registeredCount / selectedEvent.numberOfTeams) * 100))
     : 0;
 
-  const teamName = (id: number) =>
-    teams.find((t) => t.id === id)?.name ?? `Team #${id}`;
-
   const nextFixture = fixtures.find((f) => f.status !== "Completed");
 
   const handleGenerate = async () => {
@@ -86,11 +77,7 @@ export default function Fixtures() {
     setGenerating(true);
     setGenerateError("");
     try {
-      const generated = await fixturesApi.generate(
-        selectedEvent.id,
-        1,
-        selectedEvent.startDate,
-      );
+      const generated = await fixturesApi.generate(selectedEvent.id, 1, selectedEvent.startDate);
       setFixtures(generated);
     } catch (e: unknown) {
       setGenerateError(e instanceof Error ? e.message : "Failed to generate fixtures.");
@@ -98,18 +85,6 @@ export default function Fixtures() {
       setGenerating(false);
     }
   };
-
-  const formatDateTime = (iso: string) =>
-    new Date(iso).toLocaleString("en-ZA", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
-  const formatTime = (iso: string) =>
-    new Date(iso).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" });
 
   const statusColor = (status: string): "info" | "success" | "default" | "warning" => {
     switch (status.toLowerCase()) {
@@ -168,7 +143,7 @@ export default function Fixtures() {
                       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                         <LocationOnOutlinedIcon fontSize="small" color="action" />
                         <Typography color="text.secondary" variant="body2">
-                          {selectedEvent.venue} · {selectedEvent.numberOfPitches} pitch{selectedEvent.numberOfPitches !== 1 ? "es" : ""}
+                          {selectedEvent.venue}
                         </Typography>
                       </Box>
                     </Box>
@@ -197,9 +172,7 @@ export default function Fixtures() {
               {/* Capacity progress */}
               <Box sx={{ mt: 3 }}>
                 <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    Team Capacity
-                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>Team Capacity</Typography>
                   <Typography variant="body2" color="text.secondary">
                     {registeredCount} / {selectedEvent.numberOfTeams} registered
                   </Typography>
@@ -248,14 +221,14 @@ export default function Fixtures() {
               >
                 <Box>
                   <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                    {teamName(nextFixture.homeTeamId)} vs {teamName(nextFixture.awayTeamId)}
+                    {nextFixture.homeTeamName} vs {nextFixture.awayTeamName}
                   </Typography>
                   <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-                    Pitch {nextFixture.pitchId}
+                    Pitch {nextFixture.pitchId} · {nextFixture.ageGroup} {nextFixture.division && `· Division ${nextFixture.division}`}
                   </Typography>
                 </Box>
                 <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                  {formatTime(nextFixture.scheduledAt)}
+                  {nextFixture.kickOffTime}
                 </Typography>
               </Box>
             </CardContent>
@@ -274,10 +247,12 @@ export default function Fixtures() {
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell><strong>Time</strong></TableCell>
+                      <TableCell><strong>Kick-off</strong></TableCell>
                       <TableCell><strong>Pitch</strong></TableCell>
                       <TableCell><strong>Home Team</strong></TableCell>
                       <TableCell><strong>Away Team</strong></TableCell>
+                      <TableCell><strong>Age Group</strong></TableCell>
+                      <TableCell><strong>Division</strong></TableCell>
                       <TableCell><strong>Status</strong></TableCell>
                     </TableRow>
                   </TableHead>
@@ -285,7 +260,7 @@ export default function Fixtures() {
                   <TableBody>
                     {fixtures.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} align="center" sx={{ py: 4, color: "text.secondary" }}>
+                        <TableCell colSpan={7} align="center" sx={{ py: 4, color: "text.secondary" }}>
                           {!selectedEvent
                             ? "Select an event to view fixtures."
                             : !isFull
@@ -297,20 +272,28 @@ export default function Fixtures() {
                       fixtures.map((fixture) => (
                         <TableRow key={fixture.id}>
                           <TableCell>
-                            <Typography sx={{ fontWeight: 700 }}>
-                              {formatDateTime(fixture.scheduledAt)}
-                            </Typography>
+                            <Typography sx={{ fontWeight: 700 }}>{fixture.kickOffTime}</Typography>
                           </TableCell>
                           <TableCell>Pitch {fixture.pitchId}</TableCell>
                           <TableCell>
-                            <Typography sx={{ fontWeight: 600 }}>
-                              {teamName(fixture.homeTeamId)}
-                            </Typography>
+                            <Typography sx={{ fontWeight: 600 }}>{fixture.homeTeamName}</Typography>
                           </TableCell>
                           <TableCell>
-                            <Typography sx={{ fontWeight: 600 }}>
-                              {teamName(fixture.awayTeamId)}
-                            </Typography>
+                            <Typography sx={{ fontWeight: 600 }}>{fixture.awayTeamName}</Typography>
+                          </TableCell>
+                          <TableCell>
+                            {fixture.ageGroup && (
+                              <Chip label={fixture.ageGroup} size="small" />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {fixture.division && (
+                              <Chip
+                                label={`Div ${fixture.division}`}
+                                size="small"
+                                sx={{ bgcolor: "#DDF7E7", color: "#079447", fontWeight: 600 }}
+                              />
+                            )}
                           </TableCell>
                           <TableCell>
                             <Chip label={fixture.status} color={statusColor(fixture.status)} size="small" />
