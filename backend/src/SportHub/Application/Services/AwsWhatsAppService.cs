@@ -32,8 +32,12 @@ public class AwsWhatsAppService
                 return false;
             }
 
-            // Format phone number (remove 'whatsapp:' prefix if present)
+            // Format phone number (remove 'whatsapp:' prefix if present, ensure + prefix)
             var cleanNumber = toPhoneNumber.Replace("whatsapp:", "").Trim();
+            if (!cleanNumber.StartsWith("+"))
+            {
+                cleanNumber = "+" + cleanNumber;
+            }
 
             // Create the WhatsApp message payload
             var messagePayload = System.Text.Json.JsonSerializer.Serialize(new
