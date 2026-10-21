@@ -130,12 +130,18 @@ public class AwsWhatsAppWebhookController : ControllerBase
             else
             {
                 // Direct webhook call (not through SNS)
+                _logger.LogInformation("Processing direct webhook (not SNS)");
+                
                 // Check if it's AWS Social Messaging format
                 if (requestBody.TryGetProperty("whatsAppWebhookEntry", out var whatsappEntryElement))
                 {
+                    _logger.LogInformation("Found whatsAppWebhookEntry property");
+                    
                     var whatsappEntryJson = whatsappEntryElement.GetString();
                     if (!string.IsNullOrEmpty(whatsappEntryJson))
                     {
+                        _logger.LogInformation("Parsing WhatsApp entry JSON: {Json}", whatsappEntryJson);
+                        
                         var whatsappEntry = JsonSerializer.Deserialize<JsonElement>(whatsappEntryJson);
                         var whatsappPayload = new AwsWhatsAppWebhookRequest
                         {
@@ -145,11 +151,18 @@ public class AwsWhatsAppWebhookController : ControllerBase
                                 JsonSerializer.Deserialize<WhatsAppEntry>(whatsappEntry.ToString())!
                             }
                         };
+                        
+                        _logger.LogInformation("Processing WhatsApp message with {Count} entries", whatsappPayload.Entry.Count);
                         await ProcessWhatsAppMessage(whatsappPayload);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("whatsAppWebhookEntry is empty");
                     }
                 }
                 else
                 {
+                    _logger.LogInformation("Not AWS Social Messaging format, trying standard format");
                     // Standard WhatsApp webhook format
                     var whatsappPayload = JsonSerializer.Deserialize<AwsWhatsAppWebhookRequest>(body);
                     if (whatsappPayload?.Entry != null && whatsappPayload.Entry.Any())
@@ -170,23 +183,40 @@ public class AwsWhatsAppWebhookController : ControllerBase
 
     private async Task ProcessWhatsAppMessage(AwsWhatsAppWebhookRequest request)
     {
+        _logger.LogInformation("ProcessWhatsAppMessage called with {EntryCount} entries", request.Entry?.Count ?? 0);
+        
         foreach (var entry in request.Entry ?? new List<WhatsAppEntry>())
         {
+            _logger.LogInformation("Processing entry {EntryId}", entry.Id);
+            
             if (entry.Changes == null || !entry.Changes.Any())
+            {
+                _logger.LogWarning("Entry has no changes");
                 continue;
+            }
 
             foreach (var change in entry.Changes)
             {
+                _logger.LogInformation("Processing change, field: {Field}", change.Field);
+                
                 if (change.Value?.Messages == null || !change.Value.Messages.Any())
+                {
+                    _logger.LogWarning("Change has no messages");
                     continue;
+                }
 
                 foreach (var message in change.Value.Messages)
                 {
                     var userMessage = message.Text?.Body ?? message.Interactive?.ButtonReply?.Title ?? "";
                     var fromNumber = message.From;
 
+                    _logger.LogInformation("Extracted message: '{Message}' from {From}", userMessage, fromNumber);
+
                     if (string.IsNullOrWhiteSpace(userMessage) || string.IsNullOrWhiteSpace(fromNumber))
+                    {
+                        _logger.LogWarning("Message or phone number is empty");
                         continue;
+                    }
 
                     _logger.LogInformation("Processing message from {From}: {Message}", 
                         fromNumber, userMessage);
@@ -194,8 +224,12 @@ public class AwsWhatsAppWebhookController : ControllerBase
                     // Process the message
                     var response = await ProcessMessageAsync(userMessage, fromNumber);
 
+                    _logger.LogInformation("Generated response: {Response}", response);
+
                     // Send response back via AWS WhatsApp
-                    await _whatsappService.SendMessageAsync(fromNumber, response);
+                    var sent = await _whatsappService.SendMessageAsync(fromNumber, response);
+                    
+                    _logger.LogInformation("Message send result: {Success}", sent);
                 }
             }
         }
