@@ -39,7 +39,22 @@ public class RegistrationRepository(SportHubDbContext db) : IRegistrationReposit
     public Task<Registration?> GetByIdAsync(int id) => db.Registrations.FindAsync(id).AsTask();
     public Task<List<Registration>> GetByEventIdAsync(int eventId) =>
         db.Registrations.Where(r => r.EventId == eventId).ToListAsync();
-    public async Task SaveAsync(Registration reg) { db.Registrations.Add(reg); await db.SaveChangesAsync(); }
+    public async Task SaveAsync(Registration reg)
+    {
+        if (reg.Id == 0)
+        {
+            db.Registrations.Add(reg);
+        }
+        else
+        {
+            var existing = await db.Registrations.FindAsync(reg.Id);
+            if (existing is null)
+                db.Registrations.Add(reg);
+            else
+                db.Entry(existing).CurrentValues.SetValues(reg);
+        }
+        await db.SaveChangesAsync();
+    }
 }
 
 public class FixtureRepository(SportHubDbContext db) : IFixtureRepository
