@@ -2,7 +2,7 @@ name: Deploy SportsHub Organiser
 
 on:
   push:
-    branches: [main]
+    branches: [develop]
     paths:
       - 'sports-Hub-dashboard-FrontEnd/**'
       - '.github/workflows/deploy-organiser.yml'
@@ -41,7 +41,7 @@ jobs:
           VITE_API_URL: ${{ vars.ORGANISER_VITE_API_URL }}
           VITE_COGNITO_USER_POOL_ID: ${{ vars.COGNITO_USER_POOL_ID }}
           VITE_COGNITO_CLIENT_ID: ${{ vars.ORGANISER_COGNITO_CLIENT_ID }}
-          VITE_COGNITO_DOMAIN: ${{ vars.COGNITO_DOMAIN }}
+          VITE_COGNITO_DOdevelop: ${{ vars.COGNITO_DOdevelop }}
         run: npm run build
 
       - name: Configure AWS credentials (OIDC)

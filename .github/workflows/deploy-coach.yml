@@ -2,7 +2,7 @@ name: Deploy SportsHub Coach
 
 on:
   push:
-    branches: [main]
+    branches: [develop]
     paths:
       - 'frontend-AI/**'
       - '.github/workflows/deploy-coach.yml'
@@ -43,7 +43,7 @@ jobs:
           VITE_DEMO_MODE: 'false'
           VITE_COGNITO_USER_POOL_ID: ${{ vars.COGNITO_USER_POOL_ID }}
           VITE_COGNITO_CLIENT_ID: ${{ vars.COACH_COGNITO_CLIENT_ID }}
-          VITE_COGNITO_DOMAIN: ${{ vars.COGNITO_DOMAIN }}
+          VITE_COGNITO_DOdevelop: ${{ vars.COGNITO_DOdevelop }}
           VITE_WHATSAPP_NUMBER: ${{ vars.COACH_VITE_WHATSAPP_NUMBER }}
         run: npm run build
 
