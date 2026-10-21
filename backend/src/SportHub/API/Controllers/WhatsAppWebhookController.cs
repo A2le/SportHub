@@ -380,60 +380,96 @@ public class WhatsAppWebhookController : ControllerBase
         }
     }
 
-    
-private async Task<string> QueryKnowledgeBaseAsync(string question)
-{
-    try
+    private string GetAnswerForQuestion(string question)
     {
-        var knowledgeBaseId = _configuration["AWS:KnowledgeBaseId"];
-
-        if (string.IsNullOrWhiteSpace(knowledgeBaseId))
+        var questionLower = question.ToLower();
+        
+        // Rules and regulations
+        if (questionLower.Contains("rule") || questionLower.Contains("regulation"))
         {
-            _logger.LogWarning("Knowledge Base ID not configured.");
-            return string.Empty;
+            return "📋 *Tournament Rules*\n\n" +
+                   "• Teams: 11-18 players per squad\n" +
+                   "• Registration: At least 7 days before event\n" +
+                   "• Fee: R500 per team\n" +
+                   "• Match duration varies by age group\n" +
+                   "• Required equipment: Team jerseys, shin guards, appropriate footwear\n" +
+                   "• Fair play and respect mandatory\n\n" +
+                   "For full rules, email tournaments@sporthub.com";
         }
-
-        var request = new RetrieveRequest
+        
+        // Fees and costs
+        if (questionLower.Contains("fee") || questionLower.Contains("cost") || questionLower.Contains("price") || questionLower.Contains("pay"))
         {
-            KnowledgeBaseId = knowledgeBaseId,
-            RetrievalQuery = new KnowledgeBaseQuery
-            {
-                Text = question
-            },
-            RetrievalConfiguration = new KnowledgeBaseRetrievalConfiguration
-            {
-                ManagedSearchConfiguration = new ManagedSearchConfiguration
-                {
-                    NumberOfResults = 5
-                }
-            }
-        };
-
-        var response = await _bedrockRuntime.RetrieveAsync(request);
-
-        var results = response.RetrievalResults?
-            .Where(r => !string.IsNullOrWhiteSpace(r.Content?.Text))
-            .Select(r => r.Content!.Text.Trim())
-            .Distinct()
-            .ToList();
-
-        if (results == null || results.Count == 0)
-        {
-            _logger.LogInformation(
-                "No Knowledge Base results found for: {Question}", question);
-            return string.Empty;
+            return "💰 *Registration Fees*\n\n" +
+                   "Standard: R500 per team\n" +
+                   "Late registration (< 7 days): R700\n\n" +
+                   "Payment methods:\n" +
+                   "• Bank transfer (details on registration)\n" +
+                   "• Cash on tournament day\n" +
+                   "• Card payment at venue";
         }
-
-        return "💡 Here's what I found:\n\n" +
-               string.Join("\n\n", results);
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Error querying Knowledge Base: {Message}", ex.Message);
+        
+        // Match duration
+        if (questionLower.Contains("long") || questionLower.Contains("duration") || questionLower.Contains("time") || questionLower.Contains("minutes"))
+        {
+            return "⏱️ *Match Duration by Age*\n\n" +
+                   "• U11, U13: 2 × 25 min halves\n" +
+                   "• U15, U17: 2 × 30 min halves\n" +
+                   "• U19, Senior: 2 × 40 min halves\n\n" +
+                   "Half-time: 5-10 minutes\n" +
+                   "Minimum 60 minutes rest between matches for same team";
+        }
+        
+        // Equipment
+        if (questionLower.Contains("equipment") || questionLower.Contains("gear") || questionLower.Contains("kit") || questionLower.Contains("bring"))
+        {
+            return "⚽ *Required Equipment*\n\n" +
+                   "Players must have:\n" +
+                   "• Team jersey/kit (matching colors)\n" +
+                   "• Shin guards (mandatory)\n" +
+                   "• Appropriate footwear (boots or trainers)\n" +
+                   "• Water bottle\n\n" +
+                   "Balls and bibs provided by organizers";
+        }
+        
+        // Weather and cancellation
+        if (questionLower.Contains("rain") || questionLower.Contains("weather") || questionLower.Contains("cancel"))
+        {
+            return "🌦️ *Weather & Cancellations*\n\n" +
+                   "• Matches proceed in light rain\n" +
+                   "• Suspended if lightning or heavy rain\n" +
+                   "• Updates sent via WhatsApp & email\n" +
+                   "• Rescheduled fixtures announced 48hrs before\n\n" +
+                   "Check messages on tournament day!";
+        }
+        
+        // Prizes and trophies
+        if (questionLower.Contains("prize") || questionLower.Contains("trophy") || questionLower.Contains("award") || questionLower.Contains("win"))
+        {
+            return "🏆 *Prizes & Awards*\n\n" +
+                   "Each tournament offers:\n" +
+                   "• Winner: Trophy + medals for all players\n" +
+                   "• Runner-up: Medals\n" +
+                   "• Fair Play Award: Certificate\n" +
+                   "• Top Scorer: Individual trophy\n\n" +
+                   "All participants receive certificates!";
+        }
+        
+        // Registration process
+        if (questionLower.Contains("how to register") || questionLower.Contains("sign up") || questionLower.Contains("join"))
+        {
+            return "📝 *How to Register*\n\n" +
+                   "1. Type *register* to start\n" +
+                   "2. Choose your tournament\n" +
+                   "3. Provide team details\n" +
+                   "4. Confirm your information\n" +
+                   "5. Receive confirmation via email\n\n" +
+                   "Takes less than 2 minutes! 🚀\n\n" +
+                   "Ready? Type *register* now!";
+        }
+        
         return string.Empty;
     }
-}
-
 
     private async Task<List<FixtureInfo>> GetUserFixturesAsync(string userId)
     {
