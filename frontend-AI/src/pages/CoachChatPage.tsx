@@ -297,9 +297,18 @@ export default function CoachChatPage() {
 
           if (matches.length > 1) {
             addAssistantMessage(
-              "Multiple registrations matched that team name. Please ask the organiser to confirm the correct registration.",
-              { quickReplies: [{ label: "Cancel", value: "cancel" }] },
+              "I found multiple teams matching your search. Please enter or select the correct team:",
+              {
+                quickReplies: [
+                  ...matches.slice(0, 10).map((team) => ({
+                    label: team.teamName,
+                    value: team.teamName,
+                  })),
+                  { label: "Cancel", value: "cancel" },
+                ],
+              },
             );
+
             return;
           }
 
