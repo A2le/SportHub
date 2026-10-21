@@ -32,12 +32,18 @@ public class AwsWhatsAppWebhookController : ControllerBase
     }
 
     [HttpPost("webhook")]
-    public async Task<IActionResult> ReceiveMessage([FromBody] JsonElement requestBody)
+    [Consumes("application/json", "text/plain")]
+    public async Task<IActionResult> ReceiveMessage()
     {
         try
         {
-            _logger.LogInformation("Received AWS WhatsApp webhook: {Json}", 
-                requestBody.ToString());
+            // Read the raw body
+            using var reader = new StreamReader(Request.Body);
+            var body = await reader.ReadToEndAsync();
+            
+            _logger.LogInformation("Received AWS WhatsApp webhook: {Json}", body);
+
+            var requestBody = JsonSerializer.Deserialize<JsonElement>(body);
 
             // Check if this is an SNS subscription confirmation
             if (requestBody.TryGetProperty("Type", out var typeElement))
