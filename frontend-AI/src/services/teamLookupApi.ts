@@ -30,20 +30,42 @@ export async function getEventRegistrations(
   return response.data;
 }
 
+
 export async function findTeamByName(
   eventId: number,
   teamName: string
 ): Promise<EventRegistration[]> {
-    console.log(eventId," : ", teamName)
   const registrations = await getEventRegistrations(eventId);
 
   const normalize = (value: string) =>
-    value.trim().replace(/\s+/g, " ").toLowerCase();
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
 
   const query = normalize(teamName);
 
-  return registrations.filter(
+  if (!query) return [];
+
+  // Only consider confirmed registrations
+  const confirmedTeams = registrations.filter(
+    (registration) =>
+      registration.status.toLowerCase() === "confirmed"
+  );
+
+  // First, check for an exact match
+  const exactMatches = confirmedTeams.filter(
     (registration) =>
       normalize(registration.teamName) === query
   );
+
+  if (exactMatches.length > 0) {
+    return exactMatches;
+  }
+
+  // Otherwise, allow partial matches
+  return confirmedTeams.filter((registration) =>
+    normalize(registration.teamName).includes(query)
+  );
 }
+
