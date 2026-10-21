@@ -4,8 +4,8 @@ using SportHub.Application.DTOs;
 using System.Text;
 using System.Text.Json;
 using System.Collections.Concurrent;
-using Amazon.BedrockAgentRuntime;
-using Amazon.BedrockAgentRuntime.Model;
+using Amazon.SocialMessaging;
+using Amazon.SocialMessaging.Model;
 
 namespace SportHub.API.Controllers;
 
@@ -17,7 +17,7 @@ public class WhatsAppWebhookController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly ILogger<WhatsAppWebhookController> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IAmazonBedrockAgentRuntime _bedrockRuntime;
+    private readonly IAmazonSocialMessaging _socialMessaging;
     
     // In-memory session storage (for production, use Redis or database)
     private static readonly ConcurrentDictionary<string, UserSession> _sessions = new();
@@ -27,13 +27,13 @@ public class WhatsAppWebhookController : ControllerBase
         IConfiguration configuration,
         ILogger<WhatsAppWebhookController> logger,
         IHttpClientFactory httpClientFactory,
-        IAmazonBedrockAgentRuntime bedrockRuntime)
+        IAmazonSocialMessaging socialMessaging)
     {
         _whatsappService = whatsappService;
         _configuration = configuration;
         _logger = logger;
         _httpClientFactory = httpClientFactory;
-        _bedrockRuntime = bedrockRuntime;
+        _socialMessaging = socialMessaging;
     }
 
     [HttpPost("webhook")]
@@ -162,12 +162,11 @@ public class WhatsAppWebhookController : ControllerBase
             }
             else
             {
-                // Try Knowledge Base for general questions about rules, FAQs, etc.
-                _logger.LogInformation("Querying Knowledge Base for: {Question}", userMessage);
-                var kbResponse = await QueryKnowledgeBaseAsync(userMessage);
-                if (!string.IsNullOrEmpty(kbResponse))
+                // Answer common questions with pattern matching
+                var answer = GetAnswerForQuestion(userMessage);
+                if (!string.IsNullOrEmpty(answer))
                 {
-                    return kbResponse;
+                    return answer;
                 }
                 
                 return "I can help you with:\n\n" +
@@ -386,82 +385,60 @@ public class WhatsAppWebhookController : ControllerBase
         }
     }
 
-    private async Task<string> QueryKnowledgeBaseAsync(string question)
+    
+private async Task<string> QueryKnowledgeBaseAsync(string question)
+{
+    try
     {
-        try
-        {
-            var knowledgeBaseId = _configuration["AWS:KnowledgeBaseId"];
-            
-            if (string.IsNullOrEmpty(knowledgeBaseId))
-            {
-                _logger.LogWarning("Knowledge Base ID not configured");
-                return string.Empty;
-            }
-            
-            _logger.LogInformation("Querying KB {KbId} with question: {Question}", knowledgeBaseId, question);
-            
-            var request = new RetrieveAndGenerateRequest
-            {
-                Input = new RetrieveAndGenerateInput
-                {
-                    Text = question
-                },
-                RetrieveAndGenerateConfiguration = new RetrieveAndGenerateConfiguration
-                {
-                    Type = RetrieveAndGenerateType.KNOWLEDGE_BASE,
-                    KnowledgeBaseConfiguration = new KnowledgeBaseRetrieveAndGenerateConfiguration
-                    {
-                        KnowledgeBaseId = knowledgeBaseId,
-                        ModelArn = "arn:aws:bedrock:eu-west-1::foundation-model/amazon.titan-text-express-v1"
-                    }
-                }
-            };
+        var knowledgeBaseId = _configuration["AWS:KnowledgeBaseId"];
 
-            var response = await _bedrockRuntime.RetrieveAndGenerateAsync(request);
-            
-            _logger.LogInformation("KB Response received: {HasOutput}", response?.Output?.Text != null);
-            
-            if (response?.Output?.Text != null)
-            {
-                return $"💡 {response.Output.Text}";
-            }
-            
-            return string.Empty;
-        }
-        catch (Exception ex)
+        if (string.IsNullOrWhiteSpace(knowledgeBaseId))
         {
-            _logger.LogError(ex, "Error querying Knowledge Base: {Message}", ex.Message);
-            
-            // Return basic answers as fallback
-            var questionLower = question.ToLower();
-            if (questionLower.Contains("rule"))
-            {
-                return "📋 **Tournament Rules**\n\n" +
-                       "• Teams: 11-18 players\n" +
-                       "• Registration: 7 days before event\n" +
-                       "• Fee: R500 per team\n" +
-                       "• Match duration varies by age\n" +
-                       "• Equipment: Jerseys, shin guards\n\n" +
-                       "For full details, contact tournaments@sporthub.com";
-            }
-            else if (questionLower.Contains("fee") || questionLower.Contains("cost"))
-            {
-                return "💰 **Registration Fee**: R500 per team\n" +
-                       "Late registration (< 7 days): Additional R200\n\n" +
-                       "Payment via bank transfer or cash on day.";
-            }
-            else if (questionLower.Contains("time") || questionLower.Contains("duration"))
-            {
-                return "⏱️ **Match Duration**:\n" +
-                       "• U11, U13: 2 x 25 minutes\n" +
-                       "• U15, U17: 2 x 30 minutes\n" +
-                       "• U19, Senior: 2 x 40 minutes\n\n" +
-                       "Minimum 60 minutes rest between matches.";
-            }
-            
+            _logger.LogWarning("Knowledge Base ID not configured.");
             return string.Empty;
         }
+
+        var request = new RetrieveRequest
+        {
+            KnowledgeBaseId = knowledgeBaseId,
+            RetrievalQuery = new KnowledgeBaseQuery
+            {
+                Text = question
+            },
+            RetrievalConfiguration = new KnowledgeBaseRetrievalConfiguration
+            {
+                ManagedSearchConfiguration = new ManagedSearchConfiguration
+                {
+                    NumberOfResults = 5
+                }
+            }
+        };
+
+        var response = await _bedrockRuntime.RetrieveAsync(request);
+
+        var results = response.RetrievalResults?
+            .Where(r => !string.IsNullOrWhiteSpace(r.Content?.Text))
+            .Select(r => r.Content!.Text.Trim())
+            .Distinct()
+            .ToList();
+
+        if (results == null || results.Count == 0)
+        {
+            _logger.LogInformation(
+                "No Knowledge Base results found for: {Question}", question);
+            return string.Empty;
+        }
+
+        return "💡 Here's what I found:\n\n" +
+               string.Join("\n\n", results);
     }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error querying Knowledge Base: {Message}", ex.Message);
+        return string.Empty;
+    }
+}
+
 
     private async Task<List<FixtureInfo>> GetUserFixturesAsync(string userId)
     {
