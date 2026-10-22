@@ -27,6 +27,10 @@ public class SportHubDbContext(DbContextOptions<SportHubDbContext> options) : Db
             .Property(e => e.Id)
             .ValueGeneratedOnAdd();
 
+        modelBuilder.Entity<Registration>()
+            .Property(r => r.Id)
+            .ValueGeneratedOnAdd();
+
         modelBuilder.Entity<Fixture>()
             .HasOne<Team>().WithMany().HasForeignKey(f => f.HomeTeamId).OnDelete(DeleteBehavior.Restrict);
 
