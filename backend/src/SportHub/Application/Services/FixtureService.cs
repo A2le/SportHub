@@ -149,7 +149,7 @@ public class FixtureService
         }
     }
 
-    private async Task<List<Fixture>> GenerateSmartFixtures(Dictionary<string, List<int>> teamsByAgeAndDivision, Event ev, int pitchId)
+    private Task<List<Fixture>> GenerateSmartFixtures(Dictionary<string, List<int>> teamsByAgeAndDivision, Event ev, int pitchId)
     {
         var fixtures = new List<Fixture>();
         var startMinutes = TimeSpan.Parse(ev.PitchStartTime, CultureInfo.InvariantCulture).TotalMinutes;
@@ -251,7 +251,7 @@ public class FixtureService
             }
         }
 
-        return fixtures;
+        return Task.FromResult(fixtures);
     }
 
     private double FindNextAvailableSlot(
